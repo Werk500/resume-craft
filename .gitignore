@@ -1,0 +1,41 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# maven local repo (workspace)
+.m2-repo/
+
+# local dev maven settings (absolute paths)
+apps/server/settings-dev.xml
+
+# local data / logs
+data/
+logs/
+*.log
+
+# 上传的简历文件（运行时产物）
+apps/server/uploads/
+
+# npm cache (workspace)
+.npm-cache/

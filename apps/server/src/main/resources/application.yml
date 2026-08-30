@@ -1,0 +1,103 @@
+# ============================================================
+# AI 简历设计与优化软件 - 后端配置
+# 端口约定：后端 8088 / 前端 3001
+# 敏感信息（密码/密钥/API Key）一律走环境变量，.env 由启动脚本注入，
+# 本文件的默认值仅用于本地开发。
+# ============================================================
+server:
+  port: 8088
+
+spring:
+  application:
+    name: resume-craft-server
+
+  # ====== 数据源：本机 MySQL（库已建好：resume_craft）======
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    # TODO(M4): 切换 PostgreSQL + pgvector 做向量检索时启用
+    # driver-class-name: org.postgresql.Driver
+    # url: jdbc:postgresql://localhost:5432/resume_craft
+
+  # ====== 建表脚本：每次启动执行 schema.sql（IF NOT EXISTS 幂等）======
+  sql:
+    init:
+      mode: always
+
+  # ====== Redis（本机 Windows Redis 5.0） ======
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:123456}
+      timeout: 5000ms
+
+  # ====== AI 大模型（OpenAI 兼容协议；切厂商只换三个环境变量） ======
+  ai:
+    # 模型选择：只启用 chat，其余能力按里程碑再开（否则启动时强制校验 API Key）
+    model:
+      chat: openai
+      embedding: none          # TODO(M4): pgvector 向量化时改回 openai
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      api-key: ${AI_API_KEY:sk-placeholder}                # 环境变量注入；占位符仅为通过启动校验
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}    # DeepSeek；通义/Kimi/GLM 见 docs
+      chat:
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          temperature: 0.3                                 # 低温度=输出稳定，适合评分类任务
+
+  # ====== 文件上传限制 ======
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# ====== MyBatis-Plus ======
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true                      # 驼峰映射：create_time ↔ createTime
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl   # 控制台打印 SQL（开发调试用）
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto                                         # 主键自增，与实体 IdType.AUTO 一致
+
+# ====== 应用自定义 ======
+app:
+  ai:
+    mock: false        # true=Mock 假响应（无 Key 联调用）；申请到 API Key 后改 false
+  storage:
+    upload-dir: uploads                                     # 本地磁盘存储目录
+    minio:                                                  # TODO(M4): 对象存储接入时启用
+      endpoint: http://localhost:9000
+      access-key: ${MINIO_ACCESS_KEY:resumecraft}
+      secret-key: ${MINIO_SECRET_KEY:resumecraft123}
+      bucket: resumes
+  jwt:
+    # JWT 签名密钥（≥32 字节）；生产环境务必通过 JWT_SECRET 覆盖
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+
+# ====== 运维监控 ======
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus                     # /actuator/prometheus 指标输出
+  endpoint:
+    health:
+      show-details: always
+  health:
+    rabbit:
+      enabled: false                                        # TODO(M3+): 本地部署 RabbitMQ 后删除此行
+
+logging:
+  level:
+    com.resumecraft: INFO

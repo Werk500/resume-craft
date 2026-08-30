@@ -1,0 +1,108 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { api, saveAuth } from "@/lib/api";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await api("/api/v1/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ username, password, nickname: nickname || username }),
+      });
+      // 注册成功后自动登录
+      const data = await api<{ token: string; user: { userId: number; username: string; nickname: string | null } }>(
+        "/api/v1/auth/login",
+        { method: "POST", body: JSON.stringify({ username, password }) }
+      );
+      saveAuth(data.token, data.user);
+      router.push("/resumes");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "注册失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-[80vh] items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <h1 className="text-2xl font-bold text-slate-900">注册</h1>
+          <p className="mt-1 text-sm text-slate-500">创建账号，开启 AI 简历之旅</p>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">用户名</label>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                minLength={3}
+                maxLength={20}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                placeholder="3-20 个字符"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">昵称（可选）</label>
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                maxLength={50}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                placeholder="默认使用用户名"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">密码</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                maxLength={20}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                placeholder="6-20 个字符"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-blue-600 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "注册中…" : "注册"}
+            </button>
+          </form>
+
+          <p className="mt-4 text-center text-sm text-slate-500">
+            已有账号？{" "}
+            <Link href="/login" className="text-blue-600 hover:underline">
+              去登录
+            </Link>
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}

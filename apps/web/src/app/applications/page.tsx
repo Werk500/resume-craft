@@ -1,0 +1,198 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { APP_STATUS, type ApplicationRecord, type AppStatus } from "@/lib/types";
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-slate-100 text-slate-600",
+  interviewing: "bg-blue-100 text-blue-700",
+  rejected: "bg-red-100 text-red-600",
+  no_response: "bg-amber-100 text-amber-700",
+  accepted: "bg-green-100 text-green-700",
+};
+
+export default function ApplicationsPage() {
+  const [apps, setApps] = useState<ApplicationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ resumeVersionId: "", jobId: "", appliedAt: "", channel: "", status: "pending" as AppStatus, notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    setLoading(true);
+    api<ApplicationRecord[]>("/api/v1/application")
+      .then(setApps)
+      .catch((e) => setError(e instanceof Error ? e.message : "加载失败"))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api("/api/v1/application", {
+        method: "POST",
+        body: JSON.stringify({
+          resumeVersionId: form.resumeVersionId ? Number(form.resumeVersionId) : null,
+          jobId: form.jobId ? Number(form.jobId) : null,
+          appliedAt: form.appliedAt || null,
+          channel: form.channel || null,
+          status: form.status,
+          notes: form.notes || null,
+        }),
+      });
+      setShowForm(false);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "创建失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatusChange(id: number, status: string) {
+    setError(null);
+    try {
+      await api(`/api/v1/application/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "更新失败");
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("确认删除这条投递记录？")) return;
+    setError(null);
+    try {
+      await api(`/api/v1/application/${id}`, { method: "DELETE" });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "删除失败");
+    }
+  }
+
+  return (
+    <main className="mx-auto max-w-4xl p-6">
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">投递管理</h1>
+          <p className="mt-1 text-sm text-slate-500">跟踪每一次投递与面试进度</p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          {showForm ? "取消" : "+ 新增投递"}
+        </button>
+      </header>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 font-semibold text-slate-800">新增投递记录</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              type="date"
+              value={form.appliedAt}
+              onChange={(e) => setForm({ ...form, appliedAt: e.target.value })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+            <input
+              value={form.channel}
+              onChange={(e) => setForm({ ...form, channel: e.target.value })}
+              placeholder="投递渠道（如 BOSS直聘）"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+            <input
+              type="number"
+              value={form.resumeVersionId}
+              onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
+              placeholder="优化版本ID（可空）"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+            <input
+              type="number"
+              value={form.jobId}
+              onChange={(e) => setForm({ ...form, jobId: e.target.value })}
+              placeholder="岗位ID（可空）"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as AppStatus })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            >
+              {Object.entries(APP_STATUS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+            <input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="备注"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+          <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            {saving ? "保存中…" : "保存"}
+          </button>
+        </form>
+      )}
+
+      {loading && <p className="py-10 text-center text-slate-400">加载中…</p>}
+
+      {!loading && apps.length === 0 && (
+        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-16 text-center">
+          <p className="text-slate-500">还没有投递记录</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {apps.map((a) => (
+          <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-slate-800">
+                  #{a.id}
+                  {a.channel && <span className="ml-2 text-sm text-slate-500">{a.channel}</span>}
+                  {a.jobId && <span className="ml-2 text-xs text-slate-400">岗位 #{a.jobId}</span>}
+                  {a.resumeVersionId && <span className="ml-2 text-xs text-slate-400">版本 #{a.resumeVersionId}</span>}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {a.appliedAt || "未填日期"} {a.notes ? `· ${a.notes}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={a.status}
+                  onChange={(e) => handleStatusChange(a.id, e.target.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium outline-none ${STATUS_COLORS[a.status] || STATUS_COLORS.pending}`}
+                >
+                  {Object.entries(APP_STATUS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => handleDelete(a.id)}
+                  className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+}
