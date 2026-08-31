@@ -36,4 +36,4 @@ mvn -B -s settings-dev.xml -DskipTests package | Out-Host
 
 # ---- 启动 ----
 Write-Host "[2/2] 启动后端 :8088 ..." -ForegroundColor Cyan
-java -jar target/server-0.1.0-SNAPSHOT.jar
+java -jar server-app/target/resume-craft-server-0.1.0-SNAPSHOT.jar
