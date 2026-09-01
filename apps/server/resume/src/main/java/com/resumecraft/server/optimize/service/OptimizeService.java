@@ -1,5 +1,6 @@
 package com.resumecraft.server.optimize.service;
 
+import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 
 /**
@@ -15,4 +16,13 @@ public interface OptimizeService {
      * @return 保存后的优化版本
      */
     ResumeVersion optimize(Long resumeId, String targetJob);
+
+
+    /**
+     * 定向优化简历（针对目标岗位）
+     * @param resumeId
+     * @param jobId
+     * @return
+     */
+    TargetedOptimizeResponse targetedOptimize(Long resumeId, Long jobId);
 }

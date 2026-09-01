@@ -1,5 +1,6 @@
 package com.resumecraft.server.job.service;
 
+import com.resumecraft.server.job.domain.JdAnalysis;
 import com.resumecraft.server.job.domain.Job;
 
 import java.util.List;
@@ -10,4 +11,6 @@ public interface JobService {
     List<Job> findAll();
 
     Job findById(Long id);
+
+    JdAnalysis analyzeJob(Long jobId);
 }

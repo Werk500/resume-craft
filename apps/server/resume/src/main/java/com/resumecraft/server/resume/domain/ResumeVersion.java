@@ -21,6 +21,9 @@ public class ResumeVersion {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 归属用户（数据隔离） */
+    private Long userId;
+
     private Long resumeId;
 
     private String versionName;

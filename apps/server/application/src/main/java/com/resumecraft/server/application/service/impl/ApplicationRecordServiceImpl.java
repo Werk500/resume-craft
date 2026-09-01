@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.resumecraft.server.application.domain.ApplicationRecord;
 import com.resumecraft.server.application.domain.ApplicationRecordMapper;
 import com.resumecraft.server.application.service.ApplicationRecordService;
+import com.resumecraft.server.common.security.AuthContext;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +21,6 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
     @Resource
     private ApplicationRecordMapper applicationRecordMapper;
 
-
     /**
      * 创建投递记录
      * @param record
@@ -30,6 +30,9 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
     @Transactional
     public ApplicationRecord create(ApplicationRecord record) {
 
+        //获取当前用户ID
+        Long userId = AuthContext.getUserId();
+        record.setUserId(userId);
         applicationRecordMapper.insert(record);
         return record;
     }
@@ -40,8 +43,12 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
      */
     @Override
     public List<ApplicationRecord> findall() {
+
+        Long userId = AuthContext.getUserId();
+
         LambdaQueryWrapper<ApplicationRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByDesc(ApplicationRecord::getId);
+        wrapper.eq(ApplicationRecord::getUserId, userId)  // ← 添加用户过滤
+                .orderByDesc(ApplicationRecord::getId);
         return applicationRecordMapper.selectList(wrapper);
     }
 
@@ -52,7 +59,12 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
      */
     @Override
     public ApplicationRecord findById(Long id) {
-        ApplicationRecord record = applicationRecordMapper.selectById(id);
+
+        Long userId = AuthContext.getUserId();
+        LambdaQueryWrapper<ApplicationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ApplicationRecord::getUserId, userId).eq(ApplicationRecord::getId, id);
+
+        ApplicationRecord record = applicationRecordMapper.selectOne(wrapper);
         if (record == null) {
             throw new IllegalArgumentException("投递记录不存在: id=" + id);
         }
@@ -88,7 +100,6 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
     public void delete(Long id) {
         // 1. 先确认记录存在
         findById(id);
-
         // 2. 删除
         applicationRecordMapper.deleteById(id);
 

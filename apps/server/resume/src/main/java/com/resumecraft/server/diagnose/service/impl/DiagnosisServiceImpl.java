@@ -79,7 +79,6 @@ public class DiagnosisServiceImpl implements DiagnosisService {
 //            log.debug("获取锁失败，等待已有诊断结果, resumeId={}", resumeId);
 //            return waitForDiagnosisResult(resumeId, key);
 //        }
-
 //        // 检查是否在缓存空值
 //        try {
 //            if(isNullCached(resumeId)) {
@@ -90,7 +89,6 @@ public class DiagnosisServiceImpl implements DiagnosisService {
 //        } catch (Exception e) {
 //            log.warn("空值缓存检查失败, resumeId={}", resumeId, e);
 //        }
-
         log.debug("开始诊断简历, resumeId={}", resumeId);
 
         //查询简历
@@ -110,7 +108,6 @@ public class DiagnosisServiceImpl implements DiagnosisService {
         }
 
         // 拼 prompt，调 AI，拿回 JSON 字符串
-
         String json = aiService.chat(PromptTemplates.DIAGNOSIS_SYSTEM,
                 PromptTemplates.diagnosisUser(text));
 
@@ -129,7 +126,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
         }
 
         // 将诊断结果保存到数据库
-        saveDiagnosis(resumeId,r.getTotalScore(),r.getCompletenessScore(),
+        saveDiagnosis(resumeId,resume.getUserId(),r.getTotalScore(),r.getCompletenessScore(),
                 r.getExpressionScore(), r.getMatchScore(), suggestions);
 
          // 组装最终返回给前端的诊断报告
@@ -211,7 +208,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
                         log.debug("流式诊断完成, resumeId={}, json长度={}", resumeId, fullJson.length());
 
                         // 后续处理：和阻塞版一模一样
-                        handleDiagnosisComplete(resumeId, fullJson);
+                        handleDiagnosisComplete(resumeId, resume.getUserId(),fullJson);
 
                     } catch (Exception e) {
                         log.error("处理流式诊断结果失败, resumeId={}", resumeId, e);
@@ -224,9 +221,10 @@ public class DiagnosisServiceImpl implements DiagnosisService {
     }
 
 
-    private void saveDiagnosis(Long resumeId, double total, double comp, double expr, double match, List<String> suggestions) {
+    private void saveDiagnosis(Long resumeId,Long userId, double total, double comp, double expr, double match, List<String> suggestions) {
         Diagnosis diagnosis = Diagnosis.builder()
                 .resumeId(resumeId)
+                .userId(userId)
                 .totalScore(total)
                 .completenessScore(comp)
                 .expressionScore(expr)
@@ -312,7 +310,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
      * @param resumeId 简历ID
      * @param fullJson 完整的 JSON 字符串
      */
-    private void handleDiagnosisComplete(Long resumeId, String fullJson) {
+    private void handleDiagnosisComplete(Long resumeId, Long userId,String fullJson) {
         try {
             // 1. 解析 JSON 为诊断结果
             DiagnosisResult result = objectMapper.readValue(fullJson, DiagnosisResult.class);
@@ -329,6 +327,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
             // 3. 保存诊断结果到数据库
             saveDiagnosis(
                     resumeId,
+                    userId,
                     result.getTotalScore(),
                     result.getCompletenessScore(),
                     result.getExpressionScore(),

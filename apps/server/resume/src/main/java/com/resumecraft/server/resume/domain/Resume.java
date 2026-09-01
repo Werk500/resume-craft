@@ -21,6 +21,9 @@ public class Resume {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 归属用户（数据隔离） */
+    private Long userId;
+
     private String fileName;
 
     private String filePath;

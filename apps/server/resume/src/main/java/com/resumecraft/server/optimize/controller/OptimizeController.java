@@ -1,6 +1,7 @@
 package com.resumecraft.server.optimize.controller;
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import jakarta.annotation.Resource;
@@ -27,4 +28,11 @@ public class OptimizeController {
                                                @RequestParam(required = false) String targetJob) {
         return ApiResponse.ok(optimizeService.optimize(resumeId, targetJob));
     }
+
+    @PostMapping("/{resumeId}/targeted")
+    public ApiResponse<TargetedOptimizeResponse> targetedOptimize(@PathVariable Long resumeId,
+                                                                  @RequestParam Long jobId) {
+        return ApiResponse.ok(optimizeService.targetedOptimize(resumeId, jobId));
+    }
+
 }

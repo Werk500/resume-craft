@@ -1,6 +1,7 @@
 package com.resumecraft.server.resume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.file.FileStorageService;
 import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
@@ -49,6 +50,10 @@ public class ResumeServiceImpl implements ResumeService {
     @Override
     public Resume parseAndSave(MultipartFile file) {
 
+        //获取当前用户ID
+        Long userId = AuthContext.getUserId();
+        log.info("当前用户ID: {} 上传简历", userId);
+
         validateFile(file);
 
         String originalName = file.getOriginalFilename();
@@ -75,6 +80,7 @@ public class ResumeServiceImpl implements ResumeService {
 
             // 3. 构建并保存（MyBatis-Plus）
             Resume resume = Resume.builder()
+                    .userId(userId)
                     .fileName(originalName)
                     .filePath(filePath)
                     .fileType(fileType)
@@ -93,21 +99,24 @@ public class ResumeServiceImpl implements ResumeService {
 
 
 
-    /** 按 ID 查询简历（含解析结果） */
+    /** 按 ID 查询简历（含解析结果），校验归属防越权 */
     @Override
     public Resume findById(Long id) {
         Resume r = resumeMapper.selectById(id);
-        if (r == null) {
+        if (r == null || !r.getUserId().equals(AuthContext.getUserId())) {
+            // 不存在或非本人资源统一返回"不存在"，避免泄露资源是否存在
             throw new IllegalArgumentException("简历不存在：id=" + id);
         }
         return r;
     }
 
-    /** 简历列表（倒序） */
+    /** 简历列表（仅当前用户，倒序） */
     @Override
     public List<Resume> findAll() {
         return resumeMapper.selectList(
-                new LambdaQueryWrapper<Resume>().orderByDesc(Resume::getId));
+                new LambdaQueryWrapper<Resume>()
+                        .eq(Resume::getUserId, AuthContext.getUserId())
+                        .orderByDesc(Resume::getId));
     }
 
     // ---- 私有工具 ---- //

@@ -140,6 +140,7 @@ public class MatchServiceImpl implements MatchService {
         MatchResult matchResult = parseMatchResult(aiResponse);
         matchResult.setJobId(jobId);
         matchResult.setResumeId(resumeId);
+        matchResult.setUserId(resume.getUserId());
 
         //6.存match_result
         matchResultMapper.insert(matchResult);
@@ -198,6 +199,7 @@ public class MatchServiceImpl implements MatchService {
             JsonNode json = objectMapper.readTree(jsonStr);
 
             return MatchResult.builder()
+
                     .overallScore(getDouble(json, "overallScore"))
                     .keywordCoverage(getDouble(json, "keywordCoverage"))
                     .semanticSimilarity(getDouble(json, "semanticSimilarity"))

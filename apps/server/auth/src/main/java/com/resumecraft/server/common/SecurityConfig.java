@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,17 +38,19 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                // 授权规则（MVP 联调期）
+                // 授权规则：认证接口放行，业务接口要求登录（数据按用户隔离）
                 .authorizeHttpRequests(auth -> auth
                         //放行认证相关接口（注册、登录）
                         .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                         //放行 H2 Console（开发调试用）
                         .requestMatchers("/h2-console/**").permitAll()
-                        // ⚠️ 其他接口暂时全部放行（MVP 联调期）
-                        // 等前端能跑通认证了，再改成 .authenticated()
+                        //放行监控与文档
+                        .requestMatchers("/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // 业务接口要求 JWT 认证（未登录返回 401）
+                        .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll())
                 // 允许 h2-console 的 iframe
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+                .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 //添加 JWT 过滤器（在 UsernamePasswordAuthenticationFilter 之前）
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

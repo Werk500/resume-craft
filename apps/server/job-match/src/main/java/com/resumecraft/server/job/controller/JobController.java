@@ -2,6 +2,7 @@ package com.resumecraft.server.job.controller;
 
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.job.domain.JdAnalysis;
 import com.resumecraft.server.job.service.JobService;
 import com.resumecraft.server.job.domain.Job;
 
@@ -46,5 +47,16 @@ public class JobController {
     @GetMapping("/{id}")
     public ApiResponse<Job> findById(@PathVariable Long id){
         return ApiResponse.ok(jobService.findById(id));
+    }
+
+
+    /**
+     * AI分析岗位
+     * @param id
+     * @return
+     */
+    @GetMapping("/{id}/analyze")
+    public ApiResponse<JdAnalysis> analyseJob(@PathVariable Long id){
+        return ApiResponse.ok(jobService.analyzeJob(id));
     }
 }

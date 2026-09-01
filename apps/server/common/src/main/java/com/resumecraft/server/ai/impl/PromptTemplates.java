@@ -89,4 +89,94 @@ public class PromptTemplates {
         sb.append("\n请分析以上简历与该岗位的匹配度。");
         return sb.toString();
     }
+
+    // ==================== JD 分析相关 ====================
+    /**
+     * JD 分析系统提示词
+     * 资深HR角色，解析岗位JD并结构化输出
+     */
+    public static final String JD_ANALYZE_SYSTEM =
+            "你是一位资深 HR，擅长从岗位描述（JD）中提取关键信息。\n" +
+                    "请根据提供的岗位信息，解析并输出 JSON 格式的分析结果。\n\n" +
+                    "输出 JSON 格式：\n" +
+                    "{\n" +
+                    "  \"hardRequirements\": [\"学历要求（如：本科及以上）\", \"年限要求（如：3年以上Java开发经验）\", \"必备技能（如：Spring Boot、MySQL）\"],\n" +
+                    "  \"bonusPoints\": [\"加分项1（如：有高并发项目经验）\", \"加分项2（如：持有AWS认证）\"],\n" +
+                    "  \"hiddenRequirements\": [\"隐性软素质1（AI推断，如：抗压能力强）\", \"隐性软素质2（AI推断，如：团队协作能力）\"],\n" +
+                    "  \"skills\": [\"技能1\", \"技能2\", \"技能3\"],\n" +
+                    "  \"summary\": \"2句话概括岗位画像，包括核心职责和理想候选人特征\"\n" +
+                    "}\n\n" +
+                    "要求：\n" +
+                    "1. hardRequirements 要具体明确（如\"3年以上\"而非\"有经验\"）\n" +
+                    "2. hiddenRequirements 是 AI 推断的软素质，不要出现在原文中\n" +
+                    "3. skills 提取所有硬技能关键词\n" +
+                    "4. summary 用2句话精准概括"+
+                    "5.radar: [{\"name\":\"硬技能\",\"score\":0-100},{\"name\":\"软技能\",...},{\"name\":\"学历经验\",...},\n" +
+                    "        {\"name\":\"项目经验\",...},{\"name\":\"工具熟练度\",...}]";
+
+    /**
+     * 构建 JD 分析用户提示词
+     *
+     * @param jobTitle 岗位名称
+     * @param jobDesc 岗位描述
+     * @param jobReq 岗位要求
+     * @return 完整的用户提示词
+     */
+    public static String jdAnalyzeUser(String jobTitle, String jobDesc, String jobReq) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("请分析以下岗位信息：\n\n");
+        sb.append("【岗位名称】\n").append(jobTitle).append("\n\n");
+        sb.append("【岗位描述】\n").append(jobDesc).append("\n\n");
+        sb.append("【岗位要求】\n").append(jobReq).append("\n\n");
+        sb.append("请输出 JSON 格式的分析结果。");
+        return sb.toString();
+    }
+
+    // ==================== 定向优化相关 ====================
+    /**
+     * 定向优化系统提示词
+     * 资深 HR + 简历优化专家，针对目标岗位 JD 进行精准优化
+     */
+    public static final String TARGETED_OPTIMIZE_SYSTEM =
+            "你是一位资深 HR 兼简历优化专家，擅长针对目标岗位 JD 精准优化简历。\n\n" +
+                    "优化策略：\n" +
+                    "1. 自然植入 JD 核心关键词（如技能、工具、行业术语）\n" +
+                    "2. 相关经历重排置顶（将与目标岗位最匹配的经历放在最前面）\n" +
+                    "3. 强化匹配能力描述（用 JD 中的语言描述自己的经历）\n" +
+                    "4. 突出量化成果（用数据证明能力）\n\n" +
+                    "约束：\n" +
+                    "- 禁止编造经历和数据（必须基于原文）\n" +
+                    "- 保持真实的职业发展路径\n" +
+                    "- 优化后的内容要自然流畅\n\n" +
+                    "输出 JSON 格式：\n" +
+                    "{\n" +
+                    "  \"optimizedResume\": \"优化后的完整简历（Markdown 格式）\",\n" +
+                    "  \"gaps\": [\"缺失技能/经验提示1\", \"缺失技能/经验提示2\"],\n" +
+                    "  \"changes\": [\"每处改动的说明1\", \"每处改动的说明2\"]\n" +
+                    "}\n\n" +
+                    "要求：\n" +
+                    "1. gaps 指出简历与 JD 之间的差距（如缺少某项技能）\n" +
+                    "2. changes 说明每处修改的理由（如'将XX经历提前，突出匹配度'）\n" +
+                    "3. 优化后的简历保持 Markdown 格式，结构清晰";
+
+    /**
+     * 构建定向优化用户提示词
+     *
+     * @param resumeText 简历原文
+     * @param jobTitle 岗位名称
+     * @param jobDesc 岗位描述
+     * @param jobReq 岗位要求
+     * @return 完整的用户提示词
+     */
+    public static String targetedOptimizeUser(String resumeText, String jobTitle,
+                                              String jobDesc, String jobReq) {
+        return "请针对以下目标岗位优化简历：\n\n" +
+                "【目标岗位】\n" + jobTitle + "\n\n" +
+                "【岗位描述】\n" + jobDesc + "\n\n" +
+                "【岗位要求】\n" + jobReq + "\n\n" +
+                "【简历原文】\n" + resumeText + "\n\n" +
+                "请输出 JSON 格式的优化结果。";
+    }
+
+
 }
