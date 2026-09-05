@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Resume, DiagnosisResponse, ResumeVersion } from "@/lib/types";
+import SegmentRewriter from "@/components/SegmentRewriter";
 
 export default function ResumeDetailPage({ params }: { params: { id: string } }) {
   const resumeId = params.id;
@@ -60,9 +61,15 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
 
   return (
     <main className="mx-auto max-w-5xl p-6">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <Link href="/resumes" className="text-sm text-blue-600 hover:underline">
           ← 返回简历列表
+        </Link>
+        <Link
+          href={`/resume/${resumeId}/versions`}
+          className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+        >
+          📚 版本历史
         </Link>
       </div>
 
@@ -95,9 +102,10 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                   <p className="font-medium text-slate-700">{resume.parsedPhone || "未识别"}</p>
                 </div>
               </div>
-              <pre className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-                {resume.rawText}
-              </pre>
+              <p className="mt-4 text-xs text-slate-400">
+                💡 鼠标选中原文中的一段经历，可进行 AI 逐句精修
+              </p>
+              <SegmentRewriter resumeId={resumeId} initialText={resume.rawText} />
             </div>
           </div>
 

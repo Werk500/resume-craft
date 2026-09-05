@@ -8,6 +8,11 @@ public class PromptTemplates {
 
     private PromptTemplates() {}
 
+    // 方向常量
+    public static final String FOCUS_DATA = "DATA";
+    public static final String FOCUS_METHOD = "METHOD";
+    public static final String FOCUS_IMPACT = "IMPACT";
+
     /** M2：简历诊断 */
     public static final String DIAGNOSIS_SYSTEM = """
             你是一位资深 HR 和简历优化专家，拥有 10 年互联网行业招聘经验。
@@ -104,16 +109,21 @@ public class PromptTemplates {
                     "  \"bonusPoints\": [\"加分项1（如：有高并发项目经验）\", \"加分项2（如：持有AWS认证）\"],\n" +
                     "  \"hiddenRequirements\": [\"隐性软素质1（AI推断，如：抗压能力强）\", \"隐性软素质2（AI推断，如：团队协作能力）\"],\n" +
                     "  \"skills\": [\"技能1\", \"技能2\", \"技能3\"],\n" +
+                    "  \"radar\": [\n" +
+                    "    {\"name\": \"硬技能\", \"score\": 0-100},\n" +
+                    "    {\"name\": \"软技能\", \"score\": 0-100},\n" +
+                    "    {\"name\": \"学历经验\", \"score\": 0-100},\n" +
+                    "    {\"name\": \"项目经验\", \"score\": 0-100},\n" +
+                    "    {\"name\": \"工具熟练度\", \"score\": 0-100}\n" +
+                    "  ],\n" +
                     "  \"summary\": \"2句话概括岗位画像，包括核心职责和理想候选人特征\"\n" +
                     "}\n\n" +
                     "要求：\n" +
                     "1. hardRequirements 要具体明确（如\"3年以上\"而非\"有经验\"）\n" +
                     "2. hiddenRequirements 是 AI 推断的软素质，不要出现在原文中\n" +
-                    "3. skills 提取所有硬技能关键词\n" +
-                    "4. summary 用2句话精准概括"+
-                    "5.radar: [{\"name\":\"硬技能\",\"score\":0-100},{\"name\":\"软技能\",...},{\"name\":\"学历经验\",...},\n" +
-                    "        {\"name\":\"项目经验\",...},{\"name\":\"工具熟练度\",...}]";
-
+                    "3. skills 提取所有硬技能关键词（用于技能匹配和雷达图计算）\n" +
+                    "4. radar 包含5个维度，每个维度 score 为 0-100 的整数\n" +
+                    "5. summary 用2句话精准概括岗位核心职责和理想候选人特征";
     /**
      * 构建 JD 分析用户提示词
      *
@@ -178,5 +188,45 @@ public class PromptTemplates {
                 "请输出 JSON 格式的优化结果。";
     }
 
+    public static final String REWRITE_SYSTEM =
+            "你是简历润色专家。严格遵循以下规则：\n" +
+                    "1. 只改写用户给出的那一段内容，不要改动其他内容、不要添加新经历\n" +
+                    "2. 严格基于原文事实，禁止编造数据或项目\n" +
+                    "3. 按指定方向侧重改写\n" +
+                    "4. 直接输出改写后的段落文本，不需要JSON、不需要解释、不要```围栏";
+
+    /**
+     * 构建用户改写请求
+     */
+    public static String rewriteUser(String original, String focus) {
+        String focusDesc = getFocusDescription(focus);
+        return "请按【侧重：" + focusDesc + "】改写下面这段经历：\n\n" + original;
+    }
+
+    /**
+     * 获取方向描述
+     */
+    private static String getFocusDescription(String focus) {
+        switch (focus) {
+            case FOCUS_DATA:
+                return "数据成果 - 突出量化数据与可衡量成果，如'提升30%'，只能使用原文已有的数字";
+            case FOCUS_METHOD:
+                return "过程方法 - 突出技术方案、实施步骤与方法论（STAR的T-A）";
+            case FOCUS_IMPACT:
+                return "项目影响力 - 突出业务价值与对团队/业务/用户的影响（STAR的R放大）";
+            default:
+                return focus;
+        }
+    }
+
+    /** M1：图片简历 OCR（视觉大模型识别，路线 B） */
+    public static final String OCR_SYSTEM = """
+            你是一位简历文字识别助手。
+            请识别用户提供的简历图片中的全部文字内容，要求：
+            - 完整提取所有文字，包括姓名、联系方式、教育背景、工作经历、项目经历、技能等
+            - 严格保持原文顺序与逻辑结构，不要遗漏任何信息
+            - 输出为清晰的纯文本（可按原文分段），不要编造图片中不存在的内容
+            - 不要添加任何解释或评价，只输出识别出的文字
+            """;
 
 }

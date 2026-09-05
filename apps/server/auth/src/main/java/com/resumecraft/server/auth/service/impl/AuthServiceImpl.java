@@ -7,7 +7,7 @@ import com.resumecraft.server.auth.dto.LoginRequest;
 import com.resumecraft.server.auth.dto.LoginResponse;
 import com.resumecraft.server.auth.dto.RegisterRequest;
 import com.resumecraft.server.auth.dto.UserInfoResponse;
-import com.resumecraft.server.auth.security.JwtUtil;
+import com.resumecraft.server.common.security.JwtUtil;
 import com.resumecraft.server.auth.service.AuthService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -81,11 +81,10 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         // principal 是 filter 里塞入的 Long userId；不是 Long 说明没带有效 token
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long)) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             throw new IllegalArgumentException("未登录");
         }
 
-        Long userId = (Long) authentication.getPrincipal();
         SysUser sysUser = sysUserMapper.selectById(userId);
         if (sysUser == null) {
             throw new IllegalArgumentException("用户不存在");

@@ -25,7 +25,7 @@
         <module>resume</module>
         <module>job-match</module>
         <module>application</module>
-        <module>server-app</module>
+        <module>gateway</module>
     </modules>
 
     <properties>
@@ -51,6 +51,22 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Spring Cloud BOM（微服务 Step 2） -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.0.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Spring Cloud Alibaba BOM（Nacos 注册中心） -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>2025.0.0.0</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -115,11 +131,7 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- 所有模块公共依赖 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
+        <!-- 所有模块公共依赖（starter-web 由各业务模块自行声明，gateway 模块不需要 WebMvc） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>

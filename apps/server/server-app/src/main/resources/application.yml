@@ -11,6 +11,13 @@ spring:
   application:
     name: resume-craft-server
 
+  # ====== Nacos 服务注册发现（微服务 Step 2）======
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        enabled: ${NACOS_ENABLED:true}
+
   # ====== 数据源：本机 MySQL（库已建好：resume_craft）======
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

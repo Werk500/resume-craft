@@ -25,4 +25,12 @@ public interface OptimizeService {
      * @return
      */
     TargetedOptimizeResponse targetedOptimize(Long resumeId, Long jobId);
+
+    /** 单段精修：原文段 + 方向 → 改写后文本 */
+    String rewrite(String original, String focus);
+
+    /** 保存自定义内容为新版本（精修成果持久化） */
+    ResumeVersion saveContent(Long resumeId, String content, String versionName);
+    /** 导出版本：支持 docx 和 pdf */
+    byte[] exportVersion(Long versionId, String format);  // format: "docx" | "pdf"
 }

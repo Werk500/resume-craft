@@ -1,4 +1,4 @@
-package com.resumecraft.server.auth.security;
+package com.resumecraft.server.common.security;
 
 
 import io.jsonwebtoken.Jwts;
@@ -69,3 +69,4 @@ public class JwtUtil {
         return token != null && parseUserId(token) != null;
     }
 }
+

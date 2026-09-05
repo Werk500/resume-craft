@@ -3,10 +3,13 @@ package com.resumecraft.server.optimize.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.optimize.service.OptimizeService;
+import com.resumecraft.server.optimize.util.MarkdownConverter;
+import com.resumecraft.server.optimize.util.PdfGenerator;
 import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
@@ -17,7 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
@@ -43,6 +49,8 @@ public class OptimizeServiceImpl implements OptimizeService {
     private ResumeMapper resumeMapper;
     @Resource
     private JobMapper jobMapper;
+    @Resource
+    private PdfGenerator pdfGenerator;
 
     @Resource
     private ThreadPoolTaskExecutor aiExecutor;
@@ -356,6 +364,121 @@ public class OptimizeServiceImpl implements OptimizeService {
         }
     }
 
+    @Override
+    public String rewrite(String original, String focus) {
+        //1.focus校验
+        if (!isValidFocus(focus)) {
+            throw new IllegalArgumentException("无效的focus参数，必须是 DATA/METHOD/IMPACT");
+        }
 
+        //2.调用AI
+        String userPrompt = PromptTemplates.rewriteUser(original, focus);
+        String result = aiService.chat(PromptTemplates.REWRITE_SYSTEM, userPrompt);
 
+        //3. 清理：去掉```围栏、trim
+        result = cleanMarkdown(result);
+
+        if (result == null||result.isEmpty()) {
+            throw new RuntimeException("AI未返回内容");
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public ResumeVersion saveContent(Long resumeId, String content, String versionName) {
+        Resume resume = resumeMapper.selectById(resumeId);
+        //1.校验简历是否存在
+        if (resume == null) {
+            throw new IllegalArgumentException("简历不存在，resumeId: " + resumeId);
+        }
+
+        //手动校验userId
+        Long userId = AuthContext.getUserId();
+        if (!resume.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("无权操作该简历");
+        }
+
+        //2.组装ResumeVersion
+        ResumeVersion version = new ResumeVersion();
+        version.setResumeId(resumeId);
+        version.setUserId(resume.getUserId());
+        version.setOptimizedContent(content);
+
+        //如果未指定版本名，自动生成
+        if (versionName == null ) {
+            String timeStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            version.setVersionName("精修=" + timeStamp);
+        }else {
+            version.setVersionName(versionName);
+        }
+
+        //插入数据库
+        resumeVersionMapper.insert(version);
+        log.info("保存精修版本成功，resumeId: {}, versionId: {}, versionName: {}",
+                resumeId, version.getId(), version.getVersionName());
+
+        return version;
+
+    }
+
+    @Override
+    public byte[] exportVersion(Long versionId, String format) {
+        log.info("导出版本, versionId: {}, format: {}", versionId, format);
+
+        //1.查询版本 + 越权校验
+        Long userId = AuthContext.getUserId();
+        ResumeVersion version = resumeVersionMapper.selectById(versionId);
+
+        if (version == null) {
+            throw new IllegalArgumentException("版本不存在");
+        }
+
+        if (!userId.equals(version.getUserId())) {
+            log.warn("越权导出, versionId: {}, userId: {}", versionId, userId);
+            throw new IllegalArgumentException("无权导出该版本");
+        }
+
+        //2.获取内容
+        String content = version.getOptimizedContent();
+        if (content == null || content.trim().isEmpty()) {
+            throw new IllegalArgumentException("版本内容为空");
+        }
+
+        //3.format 分支
+        switch (format.toLowerCase()) {
+            case "docx":
+                log.info("导出 DOCX, versionId: {}", versionId);
+                return MarkdownConverter.toDocx(content);
+            case "pdf":
+                log.info("导出 PDF, versionId: {}", versionId);
+                String html = MarkdownConverter.toHtml(content);
+                return pdfGenerator.htmlToPdf(html);
+
+            default:
+                throw new IllegalArgumentException("不支持的格式: " + format + "，仅支持 docx 或 pdf");
+        }
+
+    }
+
+    /**
+     * 校验focus是否有效
+     */
+    private boolean isValidFocus(String focus) {
+        return PromptTemplates.FOCUS_DATA.equals(focus) ||
+                PromptTemplates.FOCUS_METHOD.equals(focus) ||
+                PromptTemplates.FOCUS_IMPACT.equals(focus);
+    }
+
+    /**
+     * 清理Markdown围栏
+     */
+    private String cleanMarkdown(String text) {
+        if (text == null) return null;
+        // 移除 ``` 和 ```xxx 等围栏
+        return text.replaceAll("(?s)```\\w*\\s*", "")
+                .replaceAll("```", "")
+                .trim();
+    }
 }

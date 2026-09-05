@@ -39,3 +39,8 @@ apps/server/uploads/
 
 # npm cache (workspace)
 .npm-cache/
+# 本地工具（Nacos 等）
+.tools/
+
+# 各微服务的上传目录（运行时产物）
+**/uploads/

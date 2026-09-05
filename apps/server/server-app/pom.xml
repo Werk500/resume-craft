@@ -43,6 +43,11 @@
         </dependency>
 
         <!-- 运行时基础设施（应用级） -->
+        <!-- Nacos 服务注册发现（微服务 Step 2） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

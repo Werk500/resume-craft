@@ -1,6 +1,5 @@
-package com.resumecraft.server.common;
+package com.resumecraft.server.common.security;
 
-import com.resumecraft.server.auth.security.JwtAuthenticationFilter;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +41,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         //放行认证相关接口（注册、登录）
                         .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        //放行内部服务间调用接口
+                        .requestMatchers("/internal/**").permitAll()
                         //放行 H2 Console（开发调试用）
                         .requestMatchers("/h2-console/**").permitAll()
                         //放行监控与文档
@@ -65,3 +66,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+

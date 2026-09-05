@@ -1,15 +1,14 @@
 package com.resumecraft.server.optimize.controller;
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.optimize.dto.RewriteRequest;
+import com.resumecraft.server.optimize.dto.SaveRequest;
 import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import jakarta.annotation.Resource;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 一键优化接口。
@@ -33,6 +32,28 @@ public class OptimizeController {
     public ApiResponse<TargetedOptimizeResponse> targetedOptimize(@PathVariable Long resumeId,
                                                                   @RequestParam Long jobId) {
         return ApiResponse.ok(optimizeService.targetedOptimize(resumeId, jobId));
+    }
+
+    /**
+     * 单段精修
+     * @param request
+     * @return
+     */
+    @PostMapping("/rewrite")
+    public ApiResponse<String> rewrite(@Valid @RequestBody RewriteRequest request) {
+        return ApiResponse.ok(optimizeService.rewrite(request.getOriginal(), request.getFocus()));
+    }
+
+    /**
+     * 保存精修版本
+     * @param resumeId
+     * @param request
+     * @return
+     */
+    @PostMapping("/{resumeId}/save")
+    public ApiResponse<ResumeVersion> saveContent(@PathVariable Long resumeId,
+                                                  @Valid @RequestBody SaveRequest request){
+        return ApiResponse.ok(optimizeService.saveContent(resumeId,request.getContent(),request.getVersionName()));
     }
 
 }

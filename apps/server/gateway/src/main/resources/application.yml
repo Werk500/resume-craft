@@ -1,0 +1,79 @@
+# ============================================================
+# API 网关配置（微服务 Step 2）
+# 统一入口 :8080，路由到注册在 Nacos 的各业务服务
+# ============================================================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: resume-craft-gateway
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+
+    gateway:
+      server:
+        webflux:
+          # Spring Cloud 2025.0 路由配置 key
+          routes:
+            # 1. 认证服务（注册、登录）
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/oauth2/**
+              filters:
+                - StripPrefix=0
+
+            # 2. 简历服务（简历、诊断、优化、版本）
+            - id: resume-service
+              uri: lb://resume-service
+              predicates:
+                - Path=/api/v1/resume/**,/api/v1/diagnose/**,/api/v1/optimize/**,/api/v1/version/**
+              filters:
+                - StripPrefix=0
+
+            # 3. 岗位匹配服务（岗位 CRUD、匹配）
+            - id: job-match-service
+              uri: lb://job-match-service
+              predicates:
+                - Path=/api/v1/job/**,/api/v1/match/**
+              filters:
+                - StripPrefix=0
+
+            # 4. 投递服务
+            - id: application-service
+              uri: lb://application-service
+              predicates:
+                - Path=/api/v1/application/**
+              filters:
+                - StripPrefix=0
+
+            # 5. 健康检查转发（前端首页探测后端是否在线）
+            - id: actuator-health
+              uri: lb://auth-service
+              predicates:
+                - Path=/actuator/health
+              filters:
+                - StripPrefix=0
+
+            # （可选）5. 兜底路由：未匹配的请求返回 404
+            # 如有需要可取消注释
+            # - id: fallback
+            #   uri: forward:/error
+            #   predicates:
+            #     - Path=/**
+            #   filters:
+            #     - name: Fallback
+
+# 网关监控端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always

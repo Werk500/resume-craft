@@ -15,6 +15,16 @@
     <description>共享能力层：通用响应/全局异常/安全配置/AI 抽象/文件存储（未来可下沉为基础服务依赖）</description>
 
     <dependencies>
+        <!-- Web MVC（ApiResponse/WebConfig 等） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- 健康检查/监控端点（所有服务统一获得 /actuator/health） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- ORM：MyMetaObjectHandler（createTime 自动填充）依赖 MyBatis-Plus -->
         <dependency>
             <groupId>com.baomidou</groupId>
@@ -25,6 +35,26 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- JWT（JwtUtil 签名/解析，Step 3 认证下沉 common） -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- OpenFeign：跨服务调用客户端接口（ResumeClient 等，Step 3） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
         <!-- AI 抽象层：AiService/AiConfig/SpringAiServiceImpl -->
         <dependency>

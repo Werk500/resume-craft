@@ -48,7 +48,7 @@ public class AuthController {
      * 获取当前用户信息
      * @return
      */
-    @GetMapping("/me")
+    @GetMapping("me")
     public ApiResponse<UserInfoResponse> me(){
 
         UserInfoResponse user = authService.me();

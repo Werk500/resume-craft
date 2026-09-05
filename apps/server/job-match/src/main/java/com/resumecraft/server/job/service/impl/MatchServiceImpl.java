@@ -6,13 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.dto.ResumeBriefDTO;
+import com.resumecraft.server.common.feign.ResumeClient;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.domain.MatchResultMapper;
 import com.resumecraft.server.job.service.MatchService;
-import com.resumecraft.server.resume.domain.Resume;
-import com.resumecraft.server.resume.domain.ResumeMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,7 +31,7 @@ public class MatchServiceImpl implements MatchService {
 
 
     @Resource
-    private ResumeMapper resumeMapper;
+    private ResumeClient resumeClient;
     @Resource
     private JobMapper jobMapper;
     @Resource
@@ -83,10 +83,10 @@ public class MatchServiceImpl implements MatchService {
         }
 
         //2. 查询简历和岗位
-        Resume resume;
+        ResumeBriefDTO resume;
         Job job;
         try {
-            resume = resumeMapper.selectById(resumeId);
+            resume = resumeClient.getResume(resumeId);
             if (resume == null) {
                 // 简历不存在，缓存空值
                 stringRedisTemplate.opsForValue().set(
@@ -178,7 +178,7 @@ public class MatchServiceImpl implements MatchService {
     /**
      * 构建简历文本（根据你的 Resume 实体字段调整）
      */
-    private String buildResumeText(Resume resume) {
+    private String buildResumeText(ResumeBriefDTO resume) {
         return "姓名：" + (resume.getParsedName() == null ? "未提供" : resume.getParsedName()) + "\n" +
                 "邮箱：" + (resume.getParsedEmail() == null ? "未提供" : resume.getParsedEmail()) + "\n" +
                 "电话：" + (resume.getParsedPhone() == null ? "未提供" : resume.getParsedPhone()) + "\n" +

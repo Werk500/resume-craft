@@ -88,6 +88,21 @@ export interface LoginResponse {
   user: UserInfo;
 }
 
+/** JD 智能解析结果 */
+export interface RadarDimension {
+  name: string;
+  score: number;
+}
+
+export interface JdAnalysis {
+  hardRequirements: string[];
+  bonusPoints: string[];
+  hiddenRequirements: string[];
+  skills: string[];
+  radar: RadarDimension[];
+  summary: string | null;
+}
+
 /** 投递状态枚举 */
 export const APP_STATUS = {
   pending: "待跟进",

@@ -1,4 +1,4 @@
-package com.resumecraft.server.auth.security;
+package com.resumecraft.server.common.security;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
@@ -58,3 +58,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 }
+
