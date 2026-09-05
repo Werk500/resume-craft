@@ -83,7 +83,6 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
 
         // 1. 先确认记录存在
         ApplicationRecord record1 = findById(id);
-
         record.setId(id);
         applicationRecordMapper.updateById(record);
 
