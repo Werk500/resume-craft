@@ -6,13 +6,11 @@
 
 ```
 .
-├── 需求文档.docx / .md     # 需求（活文档，随里程碑更新）
-├── 开发计划.md             # 分里程碑开发计划
 ├── docker-compose.yml      # 本地中间件：PostgreSQL(pgvector)/Redis/MinIO
 ├── apps/
 │   ├── web/                # 前端：Next.js 14 + TypeScript + Tailwind + shadcn/ui
 │   └── server/             # 后端：Spring Boot 3.2（模块化单体，按领域分包）
-└── docs/                   # 技术决策记录、接口文档
+└── docs/                   # 测试样例与技术文档
 ```
 
 ## 技术栈
