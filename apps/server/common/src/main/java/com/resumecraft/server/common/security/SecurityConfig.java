@@ -26,6 +26,8 @@ public class SecurityConfig {
 
     @Resource
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+    @Resource
+    private InternalTokenFilter internalTokenFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -53,7 +55,9 @@ public class SecurityConfig {
                 // 允许 h2-console 的 iframe
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 //添加 JWT 过滤器（在 UsernamePasswordAuthenticationFilter 之前）
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                 // 添加 InternalToken 过滤器（在 JWT 过滤器之前，优先校验内部 token）
+                .addFilterBefore(internalTokenFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

@@ -15,6 +15,7 @@ import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.service.ResumeService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -37,10 +38,9 @@ public class DiagnosisServiceImpl implements DiagnosisService {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private DiagnosisMapper diagnosisMapper;
+    @Lazy
     @Resource
-    private ResumeMapper resumeMapper;
-    @Resource
-    private ThreadPoolTaskExecutor aiExecutor;
+    private ResumeService resumeService;
 
     private static final String CACHE_KEY_PREFIX = "diagnose:";
     private static final String CACHE_NULL_PREFIX = "diagnose:null:";
@@ -92,7 +92,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
         log.debug("开始诊断简历, resumeId={}", resumeId);
 
         //查询简历
-        Resume resume = resumeMapper.selectById(resumeId);
+        Resume resume = resumeService.findById(resumeId);
         if (resume == null) {
             //只有在确认数据库没有数据时，才写入空值缓存
             cacheNullValue(resumeId);//防止缓存穿透
@@ -175,7 +175,7 @@ public class DiagnosisServiceImpl implements DiagnosisService {
         log.debug("开始流式诊断简历, resumeId={}", resumeId);
 
         //查询简历
-        Resume resume = resumeMapper.selectById(resumeId);
+        Resume resume = resumeService.findById(resumeId);
         if (resume == null) {
             cacheNullValue(resumeId);
             return Flux.error(new IllegalArgumentException("简历不存在: " + resumeId));

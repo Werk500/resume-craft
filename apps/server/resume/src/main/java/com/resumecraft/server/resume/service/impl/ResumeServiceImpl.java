@@ -2,9 +2,13 @@ package com.resumecraft.server.resume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.resumecraft.server.common.security.AuthContext;
+import com.resumecraft.server.diagnose.domain.Diagnosis;
+import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
 import com.resumecraft.server.file.FileStorageService;
 import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
+import com.resumecraft.server.resume.domain.ResumeVersion;
+import com.resumecraft.server.resume.domain.ResumeVersionMapper;
 import com.resumecraft.server.resume.extractor.ResumeInfoExtractor;
 import com.resumecraft.server.resume.parser.ResumeParser;
 import com.resumecraft.server.resume.service.ResumeService;
@@ -42,6 +46,10 @@ public class ResumeServiceImpl implements ResumeService {
     private ResumeMapper resumeMapper;
     @Resource
     private ResumeInfoExtractor infoExtractor;
+    @Resource
+    private DiagnosisMapper diagnosisMapper;
+    @Resource
+    private ResumeVersionMapper resumeVersionMapper;
 
     /**
      * 上传并解析简历。
@@ -149,5 +157,37 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        //1.查询简历（含归属校验）
+        Resume resume = findById(id);
+        log.info("开始删除简历: id={}, userId={}, fileName={}",
+                id, resume.getUserId(), resume.getFileName());
 
+        //2.删除关联的简历版本记录
+        int versionDeleted = resumeVersionMapper.delete(
+                new LambdaQueryWrapper<ResumeVersion>()
+                        .eq(ResumeVersion::getResumeId, id));
+        log.info("删除简历版本记录: {} 条", versionDeleted);
+
+        //3.删除关联的诊断记录
+        int diagnosisDeleted = diagnosisMapper.delete(
+                new LambdaQueryWrapper<Diagnosis>()
+                        .eq(Diagnosis::getResumeId, id));
+        log.info("删除诊断记录: {} 条", diagnosisDeleted);
+
+        //4.删除简历主记录
+        int resumeDeleted = resumeMapper.deleteById(id);
+        log.info("删除简历主记录: {} 条", resumeDeleted);
+
+        //5.删除磁盘上的文件（失败只记日志，不影响已提交的数据库事务）
+        try {
+            fileStorageService.delete(resume.getFilePath());
+            log.info("文件删除成功: {}", resume.getFilePath());
+        } catch (Exception e) {
+            log.error("文件删除失败: filePath={}, error={}", resume.getFilePath(), e.getMessage(), e);
+        }
+        log.info("简历删除成功: id={}", id);
+    }
 }

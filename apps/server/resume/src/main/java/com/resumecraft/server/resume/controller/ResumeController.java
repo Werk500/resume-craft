@@ -6,6 +6,7 @@ import java.util.List;
 import com.resumecraft.server.resume.service.ResumeService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,5 +49,11 @@ public class ResumeController {
     @GetMapping
     public ApiResponse<List<Resume>> list() {
         return ApiResponse.ok(resumeService.findAll());
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        resumeService.delete(id);
+        return ApiResponse.ok();
     }
 }

@@ -1,11 +1,14 @@
 package com.resumecraft.server.job.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.job.domain.JdAnalysis;
+import com.resumecraft.server.job.dto.JobPageResult;
 import com.resumecraft.server.job.service.JobService;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
@@ -38,6 +41,16 @@ public class JobServiceImpl implements JobService {
     private static final String CACHE_KEY_PREFIX = "analyze:";
     private static final String NULL_VALUE = "NULL";
     private static final long NULL_EXPIRE_MINUTES = 5;
+
+    /**
+     * 最大每页大小
+     */
+    private static final int MAX_SIZE = 100;
+
+    /**
+     * 默认每页大小
+     */
+    private static final int DEFAULT_SIZE = 20;
 
     /**
      * 创建职位
@@ -177,6 +190,58 @@ public class JobServiceImpl implements JobService {
     }
 
     /**
+     * 分页搜索职位
+     * @param company
+     * @param keyword
+     * @param page
+     * @param size
+     * @return
+     */
+    @Override
+    public JobPageResult search(String company, String keyword, int page, int size) {
+
+        // 1. 参数处理
+        int currentPage = Math.max(1, page);
+        int pageSize = Math.min(size>0?size:DEFAULT_SIZE,MAX_SIZE);
+
+        log.info("职位搜索: company={}, keyword={}, page={}, size={}", company, keyword, currentPage, pageSize);
+
+        //2.构建查询条件
+        LambdaQueryWrapper<Job> wrapper = new LambdaQueryWrapper<>();
+
+        // company 非空 → LIKE %company%
+        if (StringUtils.isNotBlank(company)) {
+            wrapper.like(Job::getCompany, company.trim());
+        }
+        // keyword 非空 → 匹配 title OR description OR requirements
+        if (StringUtils.isNotBlank(keyword)) {
+            String trim = keyword.trim();
+            wrapper.and(w->w
+                    .like(Job::getTitle, trim)
+                    .or()
+                    .like(Job::getDescription, trim)
+                    .or()
+            .like(Job::getRequirements, trim));
+        }
+
+        //按create_time倒序
+        wrapper.orderByDesc(Job::getCreateTime);
+
+        //3.分页查询（MyBatis-Plus Page 的 current 从 1 开始，直接传当前页）
+        Page<Job> pageResult = jobMapper.selectPage(new Page<>(currentPage, pageSize), wrapper);
+
+
+        //4.转换为DTO
+        return JobPageResult.builder()
+                .list(pageResult.getRecords())
+                .total(pageResult.getTotal())
+                .page(currentPage)
+                .size(pageSize)
+                .build();
+
+    }
+
+    /**
      * 解析 AI 返回的 JSON 为 JdAnalysis 对象
      */
     private JdAnalysis parseJdAnalysis(String aiResponse) {
@@ -249,7 +314,5 @@ public class JobServiceImpl implements JobService {
         JsonNode node = json.get(key);
         return (node != null && !node.isNull()) ? node.asInt() : null;
     }
-
-
 
 }

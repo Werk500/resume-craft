@@ -11,4 +11,6 @@ public interface ResumeService {
     Resume findById(Long id);
 
     List<Resume> findAll();
+
+    void delete(Long id);
 }

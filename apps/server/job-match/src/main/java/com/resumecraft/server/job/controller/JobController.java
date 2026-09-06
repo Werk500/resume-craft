@@ -3,9 +3,11 @@ package com.resumecraft.server.job.controller;
 
 import com.resumecraft.server.common.ApiResponse;
 import com.resumecraft.server.job.domain.JdAnalysis;
+import com.resumecraft.server.job.dto.JobPageResult;
 import com.resumecraft.server.job.service.JobService;
 import com.resumecraft.server.job.domain.Job;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
@@ -58,5 +60,12 @@ public class JobController {
     @GetMapping("/{id}/analyze")
     public ApiResponse<JdAnalysis> analyseJob(@PathVariable Long id){
         return ApiResponse.ok(jobService.analyzeJob(id));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "搜索职位", description = "根据公司名称和关键词分页搜索职位")
+    public ApiResponse<JobPageResult> search(String company,String keyword,int page,int size){
+        return ApiResponse.ok(jobService.search(company,keyword,page,size));
+
     }
 }

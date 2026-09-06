@@ -3,12 +3,14 @@ package com.resumecraft.server.application.controller;
 import com.resumecraft.server.application.domain.ApplicationRecord;
 import com.resumecraft.server.application.service.ApplicationRecordService;
 import com.resumecraft.server.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -69,5 +71,13 @@ public class ApplicationRecordController {
         applicationRecordService.delete(id);
 
         return ApiResponse.ok();
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "获取投递统计", description = "按状态分组统计当前用户的投递数量，包含总数")
+    public ApiResponse<Map<String, Long>> stats() {
+        log.info("获取投递统计");
+        Map<String, Long> result = applicationRecordService.stats();
+        return ApiResponse.ok(result);
     }
 }

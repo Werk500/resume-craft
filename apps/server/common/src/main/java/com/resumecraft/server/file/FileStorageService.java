@@ -46,4 +46,17 @@ public class FileStorageService {
         Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
         return storedName;
     }
+
+    /**
+     * 删除已存储的文件（按 store() 返回的相对文件名）。
+     *
+     * @param storedName 文件名（UUID + 扩展名）
+     */
+    public void delete(String storedName) throws IOException {
+        if (storedName == null || storedName.isEmpty()) {
+            return;
+        }
+        Path target = uploadDir.resolve(storedName).normalize();
+        Files.deleteIfExists(target);
+    }
 }

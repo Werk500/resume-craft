@@ -2,13 +2,14 @@ package com.resumecraft.server.job.controller;
 
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.job.dto.MatchBodyRequest;
 import com.resumecraft.server.job.service.MatchService;
 import jakarta.annotation.Resource;
 import  com.resumecraft.server.job.domain.MatchResult;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -53,9 +54,9 @@ public class MatchController {
      * {"resumeId": 123, "jobId": 456}
      */
     @PostMapping("/body")
-    public MatchResult matchByBody(@RequestParam Map<String, Long> request) {
-        Long resumeId = request.get("resumeId");
-        Long jobId = request.get("jobId");
+    public MatchResult matchByBody(@RequestBody @Valid MatchBodyRequest request) {
+        Long resumeId = request.getResumeId();
+        Long jobId = request.getJobId();
 
         if (resumeId == null || jobId == null) {
             throw new IllegalArgumentException("resumeId 和 jobId 不能为空");

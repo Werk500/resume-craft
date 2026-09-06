@@ -227,7 +227,7 @@ public class OptimizeServiceImpl implements OptimizeService {
         Resume resume;
         Job job;
         try {
-            resume = resumeMapper.selectById(resumeId);
+            resume = resumeService.findById(resumeId);
             if (resume == null) {
                 // 简历不存在，缓存空值
                 try {

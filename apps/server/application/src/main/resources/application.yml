@@ -43,6 +43,8 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
     expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+    # 内部服务调用 Token（用于 Feign 调用其他微服务的 /internal/** 接口）
+  internal-token: ${INTERNAL_TOKEN:dev-internal-token}
 
 logging:
   level:

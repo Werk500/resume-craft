@@ -6,12 +6,13 @@ import com.resumecraft.server.application.domain.ApplicationRecordMapper;
 import com.resumecraft.server.application.service.ApplicationRecordService;
 import com.resumecraft.server.common.security.AuthContext;
 import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -102,5 +103,40 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
         applicationRecordMapper.deleteById(id);
 
         log.info("删除投递记录成功: id={}", id);
+    }
+
+
+    /**
+     * 获取投递统计
+     * @return
+     */
+    @Override
+    public Map<String, Long> stats() {
+
+        //1.获取当前用户ID
+        Long userId = AuthContext.getUserId();
+        log.info("获取投递统计: userId={}", userId);
+
+        //查询当前用户的所有投递记录
+        LambdaQueryWrapper<ApplicationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ApplicationRecord::getUserId, userId);
+        List<ApplicationRecord> records = applicationRecordMapper.selectList(wrapper);
+
+        // 保证五个状态键永远存在（没有就返回 0）
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (String status : List.of("pending", "interviewing", "rejected", "no_response", "accepted")) {
+            result.put(status, 0L);
+        }
+
+        // 按真实状态字符串统计
+        for (ApplicationRecord record : records) {
+            if (record.getStatus() != null) {
+                result.merge(record.getStatus(), 1L, Long::sum);
+            }
+        }
+
+        result.put("total", (long) records.size());
+        return result;
+
     }
 }

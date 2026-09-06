@@ -31,6 +31,12 @@
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
+        <!-- 3.5.9+ 分页插件(PaginationInnerInterceptor)独立到 jsqlparser 模块，需显式引入 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
         <!-- 安全配置（SecurityConfig） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

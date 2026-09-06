@@ -83,7 +83,7 @@ public final class MarkdownConverter {
         html.append("<!DOCTYPE html>")
                 .append("<html>")
                 .append("<head>")
-                .append("<meta charset=\"UTF-8\">")
+                .append("<meta charset=\"UTF-8\"/>")
                 .append("</head>")
                 .append("<body style=\"font-family: SimHei, Microsoft YaHei, sans-serif; font-size: 14px; line-height: 1.8; padding: 40px;\">");
 
