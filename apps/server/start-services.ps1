@@ -183,6 +183,12 @@ try {
 
 # 3. Build (unless -SkipBuild)
 if (-not $SkipBuild) {
+    # 服务运行中 jar 会被 Windows 锁定，Maven 无法覆盖 → 先停旧服务再构建
+    Write-Info "Stopping any running services before build (Windows locks running jar files)..."
+    & (Join-Path $PSScriptRoot 'stop-services.ps1') -Force
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorExit "Failed to stop existing services before build (exit code: $LASTEXITCODE)"
+    }
     Write-Info "Building microservices with Maven..."
     mvn -B -s settings-dev.xml -DskipTests package
     if ($LASTEXITCODE -ne 0) {
