@@ -207,16 +207,12 @@ public class PromptTemplates {
      * 获取方向描述
      */
     private static String getFocusDescription(String focus) {
-        switch (focus) {
-            case FOCUS_DATA:
-                return "数据成果 - 突出量化数据与可衡量成果，如'提升30%'，只能使用原文已有的数字";
-            case FOCUS_METHOD:
-                return "过程方法 - 突出技术方案、实施步骤与方法论（STAR的T-A）";
-            case FOCUS_IMPACT:
-                return "项目影响力 - 突出业务价值与对团队/业务/用户的影响（STAR的R放大）";
-            default:
-                return focus;
-        }
+        return switch (focus) {
+            case FOCUS_DATA -> "数据成果 - 突出量化数据与可衡量成果，如'提升30%'，只能使用原文已有的数字";
+            case FOCUS_METHOD -> "过程方法 - 突出技术方案、实施步骤与方法论（STAR的T-A）";
+            case FOCUS_IMPACT -> "项目影响力 - 突出业务价值与对团队/业务/用户的影响（STAR的R放大）";
+            default -> focus;
+        };
     }
 
     /** M1：图片简历 OCR（视觉大模型识别，路线 B） */
@@ -228,5 +224,76 @@ public class PromptTemplates {
             - 输出为清晰的纯文本（可按原文分段），不要编造图片中不存在的内容
             - 不要添加任何解释或评价，只输出识别出的文字
             """;
+
+    /**
+     * 关键词抽取 User Prompt
+     */
+    public static String extractKeywords(String title, String description, String requirements) {
+        return String.format("""
+                职位标题：%s
+                职位描述：%s
+                职位要求：%s
+                
+                请提取核心技术关键词，只输出 JSON。
+                """, title, description, requirements);
+    }
+
+    /**
+     * 语义匹配 System Prompt
+     */
+    public static final String SEMANTIC_MATCH_SYSTEM = """
+            你是一个简历与职位匹配专家。
+            请从语义层面评估候选人与职位的匹配度，重点关注：
+            1. 能力匹配：候选人的技能是否符合职位要求
+            2. 经验匹配：项目经验与业务场景是否契合
+            3. 潜力评估：候选人是否有成长空间
+            
+            输出格式（JSON）：
+            {"score": 0-100的整数, "reason": "简要说明"}
+            
+            评分标准：
+            - 90-100：高度匹配，完全符合
+            - 70-89：较好匹配，大部分符合
+            - 50-69：一般匹配，部分符合
+            - 0-49：匹配度较低
+            """;
+
+    /**
+     * 关键词抽取 System Prompt
+     */
+    public static final String EXTRACT_KEYWORDS_SYSTEM = """
+            你是一个职位关键词提取专家。
+            请从职位描述中提取核心技术关键词，包括：
+            - 编程语言（Java, Python, Go 等）
+            - 框架/工具（Spring Boot, React, Docker 等）
+            - 数据库/中间件（MySQL, Redis, Kafka 等）
+            - 领域/业务词（微服务, 高并发, 金融风控等）
+            
+            要求：
+            1. 只输出 JSON 格式
+            2. 关键词数量控制在 10-20 个
+            3. 避免过于宽泛的词（如 "软件"、"开发"）
+            
+            输出格式：
+            {"keywords": ["keyword1", "keyword2", ...]}
+            """;
+
+    /**
+     * 语义匹配 User Prompt
+     */
+    public static String semanticMatchUser(String resumeText, String title, String description, String requirements) {
+        return String.format("""
+                职位信息：
+                标题：%s
+                描述：%s
+                要求：%s
+                
+                简历内容：
+                %s
+                
+                请从语义层面评估匹配度，只输出 JSON。
+                """, title, description, requirements, resumeText);
+    }
+
 
 }

@@ -18,4 +18,7 @@ public class MatchBodyRequest {
     @NotNull
     Long jobId;
 
+    private Long versionId;      // 传了=匹配某个优化版本，不传=匹配简历原文
+    private Boolean forceRefresh; // true=跳过缓存，用于优化前后对比
+
 }

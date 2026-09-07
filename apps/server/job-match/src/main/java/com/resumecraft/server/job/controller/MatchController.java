@@ -57,6 +57,8 @@ public class MatchController {
     public MatchResult matchByBody(@RequestBody @Valid MatchBodyRequest request) {
         Long resumeId = request.getResumeId();
         Long jobId = request.getJobId();
+        Long versionId = request.getVersionId();
+        boolean equals = Boolean.TRUE.equals(request.getForceRefresh());
 
         if (resumeId == null || jobId == null) {
             throw new IllegalArgumentException("resumeId 和 jobId 不能为空");
@@ -64,7 +66,7 @@ public class MatchController {
 
         log.info("收到人岗匹配请求（JSON Body），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId).getData();
+        return matchService.match(resumeId, jobId,versionId,equals).getData();
     }
 
 
