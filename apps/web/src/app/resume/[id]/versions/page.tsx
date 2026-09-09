@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { ResumeVersion } from "@/lib/types";
+import type { Resume, ResumeVersion } from "@/lib/types";
 import TextDiff from "@/components/TextDiff";
 
 export default function VersionsPage({ params }: { params: { id: string } }) {
   const resumeId = params.id;
 
   const [versions, setVersions] = useState<ResumeVersion[]>([]);
+  const [resume, setResume] = useState<Resume | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number[]>([]); // 最多选 2 个对比
@@ -17,8 +18,14 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
 
   function load() {
     setLoading(true);
-    api<ResumeVersion[]>(`/api/v1/version?resumeId=${resumeId}`)
-      .then(setVersions)
+    Promise.all([
+      api<ResumeVersion[]>(`/api/v1/version?resumeId=${resumeId}`),
+      api<Resume>(`/api/v1/resume/${resumeId}`),
+    ])
+      .then(([versionList, resumeData]) => {
+        setVersions(versionList);
+        setResume(resumeData);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
   }
@@ -37,13 +44,30 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
     });
   }
 
+  function findVersion(id: number): ResumeVersion | null {
+    // id = 0 代表“原始简历”，作为最旧的基准
+    if (id === 0 && resume) {
+      return {
+        id: 0,
+        resumeId: Number(resumeId),
+        versionName: "原始简历",
+        targetJob: null,
+        optimizedContent: resume.rawText,
+        matchScore: null,
+        createTime: "",
+      };
+    }
+    return versions.find((v) => v.id === id) ?? null;
+  }
+
   function compare() {
     if (selected.length !== 2) return;
-    const a = versions.find((v) => v.id === selected[0]);
-    const b = versions.find((v) => v.id === selected[1]);
+    const a = findVersion(selected[0]);
+    const b = findVersion(selected[1]);
     if (!a || !b) return;
-    // 约定：旧版本在前（更早创建的）
-    const [oldV, newV] = a.createTime <= b.createTime ? [a, b] : [b, a];
+    // 约定：原始简历始终作为旧版；两个版本则按创建时间排序
+    const [oldV, newV] =
+      a.id === 0 ? [a, b] : b.id === 0 ? [b, a] : a.createTime <= b.createTime ? [a, b] : [b, a];
     setDiffPair([oldV, newV]);
   }
 
@@ -105,6 +129,30 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
 
       {/* 版本列表 */}
       <div className="space-y-2">
+        {resume && (
+          <div
+            key={0}
+            className={`flex items-center justify-between rounded-xl border p-4 transition ${
+              selected.includes(0) ? "border-blue-400 bg-blue-50" : "border-amber-200 bg-amber-50/50"
+            }`}
+          >
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selected.includes(0)}
+                onChange={() => toggleSelect(0)}
+                className="h-4 w-4"
+              />
+              <div>
+                <p className="font-medium text-slate-800">📄 原始简历（上传解析）</p>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {resume.fileName} · {resume.rawText?.length ?? 0} 字
+                </p>
+              </div>
+            </label>
+            <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-600">基准</span>
+          </div>
+        )}
         {versions.map((v) => (
           <div
             key={v.id}
