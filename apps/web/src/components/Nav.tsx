@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { clearAuth, getCurrentUser } from "@/lib/api";
 
 const navLinks = [
+  { href: "/create", label: "AI 创建" },
   { href: "/resumes", label: "简历" },
   { href: "/jobs", label: "岗位" },
   { href: "/match", label: "匹配" },
