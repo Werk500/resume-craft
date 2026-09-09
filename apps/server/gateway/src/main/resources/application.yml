@@ -47,7 +47,7 @@ spring:
             - id: resume-service
               uri: lb://resume-service
               predicates:
-                - Path=/api/v1/resume/**,/api/v1/diagnose/**,/api/v1/optimize/**,/api/v1/version/**
+                - Path=/api/v1/resume/**,/api/v1/diagnose/**,/api/v1/optimize/**,/api/v1/version/**,/api/v1/chat/**
               filters:
                 - StripPrefix=0
 

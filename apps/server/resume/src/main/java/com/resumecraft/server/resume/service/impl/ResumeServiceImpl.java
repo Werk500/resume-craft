@@ -23,6 +23,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 
@@ -189,5 +191,36 @@ public class ResumeServiceImpl implements ResumeService {
             log.error("文件删除失败: filePath={}, error={}", resume.getFilePath(), e.getMessage(), e);
         }
         log.info("简历删除成功: id={}", id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Resume saveFromText(Long userId, String rawText, String fileName) {
+
+        if (rawText == null || rawText.isBlank()) {
+            throw new IllegalArgumentException("简历内容不能为空");
+        }
+
+        //生成时间戳
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+
+        String finalFileName = (fileName == null || fileName.isBlank())
+                ? "AI对话创建-" + timestamp + ".md"
+                : fileName;
+
+        //构建文件路径
+        String filePath = String.format("chat/%d/%s.md", userId, timestamp);
+
+        //构建Resume实体
+        Resume resume = Resume.builder()
+                .userId(userId)
+                .fileName(finalFileName)
+                .filePath(filePath)
+                .fileType("md")
+                .rawText(rawText).build();
+        resumeMapper.insert(resume);
+        log.info("对话创建简历成功: id={}, userId={}", resume.getId(), userId);
+        return resume;
+
     }
 }

@@ -1,6 +1,10 @@
 package com.resumecraft.server.ai.impl;
 
 
+import com.resumecraft.server.ai.dto.ChatMessage;
+
+import java.util.List;
+
 /**
  * 提示词模板集中管理 —— 所有 Prompt 都放这里，禁止散落在业务代码中。
  */
@@ -294,6 +298,43 @@ public class PromptTemplates {
                 请从语义层面评估匹配度，只输出 JSON。
                 """, title, description, requirements, resumeText);
     }
+
+
+    public static final String RESUME_CREATE_SYSTEM =
+            "你是一个专业的简历创建助手，帮助用户创建专业的简历。\n" +
+                    "请遵循以下规则：\n" +
+                    "1. 每次只问一个问题，根据用户的回答逐步完善简历信息\n" +
+                    "2. 当收集到足够的信息时，在第一行输出 [BUILD]，然后输出完整的Markdown格式简历\n" +
+                    "3. Markdown简历应包含：个人信息、教育背景、工作经历、项目经验、技能等标准部分\n" +
+                    "4. 保持专业、清晰的表达方式\n" +
+                    "5. 如果用户提供的信息不完整，继续提问缺失的关键信息";
+
+
+    /**
+     * 拼接用户提示词
+     * @param messages 对话历史
+     * @param targetJob 目标职位
+     * @return 拼接后的用户提示词
+     */
+    public static String buildUserPrompt(List<ChatMessage> messages, String targetJob) {
+        StringBuilder prompt = new StringBuilder();
+
+        // 添加目标职位信息
+        if (targetJob != null && !targetJob.isEmpty()) {
+            prompt.append("目标职位：").append(targetJob).append("\n\n");
+        }
+
+        // 添加对话历史
+        prompt.append("对话历史：\n");
+        for (ChatMessage message : messages) {
+            String role = "user".equals(message.getRole()) ? "用户" : "助手";
+            prompt.append(role).append("：").append(message.getContent()).append("\n");
+        }
+
+        return prompt.toString();
+    }
+
+
 
 
 }

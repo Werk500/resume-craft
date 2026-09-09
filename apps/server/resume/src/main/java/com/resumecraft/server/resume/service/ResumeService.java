@@ -13,4 +13,6 @@ public interface ResumeService {
     List<Resume> findAll();
 
     void delete(Long id);
+
+    Resume saveFromText(Long userId, String rawText, String fileName);
 }

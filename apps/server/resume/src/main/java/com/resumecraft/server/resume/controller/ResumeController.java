@@ -3,12 +3,16 @@ package com.resumecraft.server.resume.controller;
 import java.io.IOException;
 import java.util.List;
 
+import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.resume.service.ResumeService;
+import com.resumecraft.server.resume.dto.CreateFromTextRequest;
+import jakarta.validation.Valid;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,6 +43,15 @@ public class ResumeController {
     public ApiResponse<Resume> upload(@RequestParam("file") MultipartFile file) throws IOException {
 
         return ApiResponse.ok(resumeService.parseAndSave(file));
+    }
+
+    @PostMapping("/from-text")
+    public ApiResponse<Resume> createFromText(@Valid @RequestBody CreateFromTextRequest request) {
+        return ApiResponse.ok(
+                resumeService.saveFromText(
+                        AuthContext.getUserId(),
+                        request.getRawText(),
+                        request.getFileName()));
     }
 
     @GetMapping("/{id}")
