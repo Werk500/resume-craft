@@ -1,12 +1,13 @@
 package com.resumecraft.server.job.service;
 
+import com.baomidou.mybatisplus.spring.service.IService;
 import com.resumecraft.server.job.domain.JdAnalysis;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.dto.JobPageResult;
 
 import java.util.List;
 
-public interface JobService {
+public interface JobService extends IService<Job> {
     Job createJob(Job job);
 
     List<Job> findAll();
@@ -24,4 +25,5 @@ public interface JobService {
      * @return
      */
     JobPageResult search(String company, String keyword, int page, int size);
+
 }

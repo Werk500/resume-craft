@@ -3,6 +3,7 @@ package com.resumecraft.server.job.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
@@ -24,10 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-public class JobServiceImpl implements JobService {
-
-    @Resource
-    private JobMapper jobMapper;
+public class JobServiceImpl extends ServiceImpl<JobMapper,Job> implements JobService {
 
     @Resource
     private AiService aiService;
@@ -57,7 +55,7 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     public Job createJob(Job job) {
-        jobMapper.insert(job);
+        baseMapper.insert(job);
         return job;
     }
 
@@ -69,12 +67,12 @@ public class JobServiceImpl implements JobService {
     public List<Job> findAll() {
         LambdaQueryWrapper<Job> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.orderByDesc(Job::getId);
-        return jobMapper.selectList(queryWrapper);
+        return baseMapper.selectList(queryWrapper);
     }
 
     @Override
     public Job findById(Long id) {
-        Job job = jobMapper.selectById(id);
+        Job job = baseMapper.selectById(id);
         if (job == null) {
             throw new IllegalArgumentException("岗位不存在：id=" + id);  // GlobalExceptionHandler 自动转 400
         }
@@ -128,7 +126,7 @@ public class JobServiceImpl implements JobService {
         // 5. 查询岗位
         Job job;
         try {
-            job = jobMapper.selectById(jobId);
+            job = baseMapper.selectById(jobId);
             if (job == null) {
                 // 岗位不存在，缓存空值（防穿透）
                 try {
@@ -228,7 +226,7 @@ public class JobServiceImpl implements JobService {
         wrapper.orderByDesc(Job::getCreateTime);
 
         //3.分页查询（MyBatis-Plus Page 的 current 从 1 开始，直接传当前页）
-        Page<Job> pageResult = jobMapper.selectPage(new Page<>(currentPage, pageSize), wrapper);
+        Page<Job> pageResult = baseMapper.selectPage(new Page<>(currentPage, pageSize), wrapper);
 
 
         //4.转换为DTO
@@ -314,5 +312,6 @@ public class JobServiceImpl implements JobService {
         JsonNode node = json.get(key);
         return (node != null && !node.isNull()) ? node.asInt() : null;
     }
+
 
 }

@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS job (
     description  TEXT         COMMENT '岗位描述/JD',
     requirements TEXT         COMMENT '任职要求',
     source_url   VARCHAR(500) COMMENT '来源链接',
+    UNIQUE KEY uk_source_url (source_url),
     create_time  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
