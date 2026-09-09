@@ -52,6 +52,31 @@ export interface Job {
 }
 
 /** 匹配结果 */
+export interface KeywordHit {
+  keyword: string;
+  hit: boolean;
+}
+
+export interface MatchDimensionDetails {
+  keyword?: {
+    total: number | null;
+    hit: number | null;
+    missingKeywords: string[] | null;
+  } | null;
+  semantic?: {
+    score: number | null;
+    reason: string | null;
+    mode: string | null;
+  } | null;
+  hardRequirement?: {
+    educationRequirement: string | null;
+    educationMet: boolean | null;
+    yearRequirement: string | null;
+    yearMet: boolean | null;
+    failedItems: string[] | null;
+  } | null;
+}
+
 export interface MatchResult {
   id: number;
   resumeId: number;
@@ -61,7 +86,19 @@ export interface MatchResult {
   semanticSimilarity: number | null;
   hardRequirementScore: number | null;
   matchExplanation: string | null;
+  hardRequirementPassed: boolean | null;
+  keywordHits: KeywordHit[] | null;
+  missingKeywords: string[] | null;
+  dimensionDetails: MatchDimensionDetails | null;
   createTime: string;
+}
+
+/** 定向优化响应 */
+export interface TargetedOptimizeResponse {
+  versionId: number;
+  optimizedContent: string;
+  gaps: string[] | null;
+  changes: string[] | null;
 }
 
 /** 投递记录 */

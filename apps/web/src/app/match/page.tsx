@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Resume, Job, MatchResult } from "@/lib/types";
+import type { Resume, Job, MatchResult, TargetedOptimizeResponse } from "@/lib/types";
+import ImprovementReport from "@/components/ImprovementReport";
 
 export default function MatchPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -10,7 +11,13 @@ export default function MatchPage() {
   const [resumeId, setResumeId] = useState<string>("");
   const [jobId, setJobId] = useState<string>("");
   const [result, setResult] = useState<MatchResult | null>(null);
+  const [report, setReport] = useState<{
+    before: MatchResult;
+    after: MatchResult;
+    targeted: TargetedOptimizeResponse;
+  } | null>(null);
   const [matching, setMatching] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,12 +39,66 @@ export default function MatchPage() {
     setMatching(true);
     setError(null);
     setResult(null);
+    setReport(null);
     try {
-      setResult(await api<MatchResult>(`/api/v1/match/${resumeId}/${jobId}`, { method: "POST" }));
+      const matched = await api<MatchResult>("/api/v1/match/body", {
+        method: "POST",
+        body: JSON.stringify({
+          resumeId: Number(resumeId),
+          jobId: Number(jobId),
+          forceRefresh: true,
+        }),
+      });
+      setResult(matched);
     } catch (e) {
       setError(e instanceof Error ? e.message : "匹配失败");
     } finally {
       setMatching(false);
+    }
+  }
+
+  async function handleTargetedOptimize() {
+    if (!resumeId || !jobId) {
+      setError("请选择简历和岗位");
+      return;
+    }
+    setOptimizing(true);
+    setError(null);
+    setResult(null);
+    setReport(null);
+    try {
+      // 1. 优化前：简历原文对 JD 匹配
+      const before = await api<MatchResult>("/api/v1/match/body", {
+        method: "POST",
+        body: JSON.stringify({
+          resumeId: Number(resumeId),
+          jobId: Number(jobId),
+          forceRefresh: true,
+        }),
+      });
+
+      // 2. 定向优化并保存版本
+      const targeted = await api<TargetedOptimizeResponse>(
+        `/api/v1/optimize/${resumeId}/targeted?jobId=${jobId}`,
+        { method: "POST" },
+      );
+
+      // 3. 优化后：对保存的版本重新匹配（forceRefresh 跳过缓存，保证可复现对比）
+      const after = await api<MatchResult>("/api/v1/match/body", {
+        method: "POST",
+        body: JSON.stringify({
+          resumeId: Number(resumeId),
+          jobId: Number(jobId),
+          versionId: targeted.versionId,
+          forceRefresh: true,
+        }),
+      });
+
+      setReport({ before, after, targeted });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "定向优化失败");
+    } finally {
+      setOptimizing(false);
     }
   }
 
@@ -88,13 +149,22 @@ export default function MatchPage() {
             </select>
           </div>
         </div>
-        <button
-          onClick={handleMatch}
-          disabled={matching || resumes.length === 0 || jobs.length === 0}
-          className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {matching ? "AI 匹配分析中，约 20~40 秒…" : "开始匹配"}
-        </button>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <button
+            onClick={handleMatch}
+            disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
+            className="rounded-lg bg-slate-100 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+          >
+            {matching ? "AI 匹配分析中，约 20~40 秒…" : "仅看匹配度"}
+          </button>
+          <button
+            onClick={handleTargetedOptimize}
+            disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
+            className="rounded-lg bg-emerald-600 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {optimizing ? "定向优化 + 重新匹配中…" : "🎯 定向优化并对比提升"}
+          </button>
+        </div>
       </div>
 
       {/* 结果区 */}
@@ -119,6 +189,18 @@ export default function MatchPage() {
               <p className="text-sm leading-relaxed text-slate-600">{result.matchExplanation}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 定向优化提升报告 */}
+      {report && (
+        <div className="mt-6">
+          <ImprovementReport
+            resumeId={resumeId}
+            before={report.before}
+            after={report.after}
+            targeted={report.targeted}
+          />
         </div>
       )}
     </main>
