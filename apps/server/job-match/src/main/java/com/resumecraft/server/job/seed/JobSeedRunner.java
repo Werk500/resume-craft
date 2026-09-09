@@ -29,7 +29,7 @@ public class JobSeedRunner implements CommandLineRunner {
     private JobMapper jobMapper;
     @Resource
     private ObjectMapper objectMapper;
-    
+
 
 
     /**
@@ -39,6 +39,8 @@ public class JobSeedRunner implements CommandLineRunner {
      */
     @Override
     public void run(String... args) throws Exception {
+
+
         List<Job> jobs = readSeed();
 
         //把 sourceUrl 为 null 或空的过滤
@@ -70,7 +72,6 @@ public class JobSeedRunner implements CommandLineRunner {
 
     /**
      * 读 job_seed.json
-     * @return
      */
     private List<Job> readSeed() {
         ClassPathResource resource = new ClassPathResource("db/jobs.json");
