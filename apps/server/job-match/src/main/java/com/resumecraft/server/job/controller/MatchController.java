@@ -26,11 +26,10 @@ public class MatchController {
      * @return
      */
     @PostMapping("/{resumeId}/{jobId}")
-    public MatchResult matchByPath(@PathVariable Long resumeId, @PathVariable Long jobId) {
+    public ApiResponse<MatchResult> matchByPath(@PathVariable Long resumeId, @PathVariable Long jobId) {
         log.info("收到人岗匹配请求（路径参数），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        ApiResponse<MatchResult> response = matchService.match(resumeId, jobId);
-        return response.getData();
+        return matchService.match(resumeId, jobId);
 
     }
 
@@ -41,11 +40,11 @@ public class MatchController {
      * @return
      */
     @PostMapping
-    public MatchResult matchByParam(@RequestParam Long resumeId,
+    public ApiResponse<MatchResult> matchByParam(@RequestParam Long resumeId,
                                                  @RequestParam Long jobId) {
         log.info("收到人岗匹配请求（请求参数），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId).getData();
+        return matchService.match(resumeId, jobId);
     }
 
     /**
@@ -54,7 +53,7 @@ public class MatchController {
      * {"resumeId": 123, "jobId": 456}
      */
     @PostMapping("/body")
-    public MatchResult matchByBody(@RequestBody @Valid MatchBodyRequest request) {
+    public ApiResponse<MatchResult> matchByBody(@RequestBody @Valid MatchBodyRequest request) {
         Long resumeId = request.getResumeId();
         Long jobId = request.getJobId();
         Long versionId = request.getVersionId();
@@ -66,7 +65,7 @@ public class MatchController {
 
         log.info("收到人岗匹配请求（JSON Body），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId,versionId,equals).getData();
+        return matchService.match(resumeId, jobId, versionId, equals);
     }
 
 
