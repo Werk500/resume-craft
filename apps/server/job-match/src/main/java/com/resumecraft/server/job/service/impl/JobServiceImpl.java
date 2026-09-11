@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.job.domain.JdAnalysis;
 import com.resumecraft.server.job.dto.JobPageResult;
 import com.resumecraft.server.job.service.JobService;
@@ -36,7 +37,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper,Job> implements JobSer
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    private static final String CACHE_KEY_PREFIX = "analyze:";
+    private static final String CACHE_KEY_PREFIX = CacheKeys.PREFIX + "analyze:";
     private static final String NULL_VALUE = "NULL";
     private static final long NULL_EXPIRE_MINUTES = 5;
 

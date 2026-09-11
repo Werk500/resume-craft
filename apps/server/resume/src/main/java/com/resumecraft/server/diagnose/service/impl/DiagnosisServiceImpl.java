@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.DiagnosisResponse;
 import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
@@ -42,11 +43,11 @@ public class DiagnosisServiceImpl implements DiagnosisService {
     @Resource
     private ResumeService resumeService;
 
-    private static final String CACHE_KEY_PREFIX = "diagnose:";
-    private static final String CACHE_NULL_PREFIX = "diagnose:null:";
+    private static final String CACHE_KEY_PREFIX = CacheKeys.PREFIX + "diagnose:";
+    private static final String CACHE_NULL_PREFIX = CacheKeys.PREFIX + "diagnose:null:";
     private static final int NULL_CACHE_EXPIRE_MINUTES = 5;
     private static final int LOCK_EXPIRE_SECONDS = 60;        // 分布式锁过期时间：60秒
-    private static final String CACHE_LOCK_PREFIX = "diagnose:lock:";
+    private static final String CACHE_LOCK_PREFIX = CacheKeys.PREFIX + "diagnose:lock:";
 
     private final Random random = new Random();
 

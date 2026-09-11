@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.dto.ResumeBriefDTO;
 import com.resumecraft.server.common.dto.ResumeVersionDTO;
 import com.resumecraft.server.common.feign.ResumeClient;
@@ -180,16 +181,13 @@ public class MatchServiceImpl implements MatchService {
      * 构建缓存 key
      */
     private String buildCacheKey(Long resumeId, Long jobId) {
-        return "match:" + resumeId + ":" + jobId;
+        return CacheKeys.match(resumeId, jobId);
     }
     /**
      * 构建缓存 key（包含版本信息）
      */
     private String buildCacheKey(Long resumeId, Long jobId, Long versionId) {
-        if (versionId != null) {
-            return "match:" + resumeId + ":" + jobId + ":v" + versionId;
-        }
-        return "match:" + resumeId + ":" + jobId;
+        return CacheKeys.match(resumeId, jobId, versionId);
     }
 
     /**

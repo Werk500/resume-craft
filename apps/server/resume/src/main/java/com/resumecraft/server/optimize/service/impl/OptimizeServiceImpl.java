@@ -3,6 +3,7 @@ package com.resumecraft.server.optimize.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
@@ -61,8 +62,6 @@ public class OptimizeServiceImpl implements OptimizeService {
 
     private static final String NULL_VALUE = "NULL";
     private static final long NULL_EXPIRE_MINUTES = 5;
-    private static final String CACHE_KEY_PREFIX = "targeted-optimize:";
-
 
     @Override
     public ResumeVersion optimize(Long resumeId, String targetJob) {
@@ -191,7 +190,7 @@ public class OptimizeServiceImpl implements OptimizeService {
         log.info("开始定向优化: resumeId={}, jobId={}", resumeId, jobId);
 
         // 1. 构建缓存 key
-        String cacheKey = CACHE_KEY_PREFIX + resumeId + ":" + jobId;
+        String cacheKey = CacheKeys.targetedOptimize(resumeId, jobId);
 
         // 2. 检查缓存（Redis 异常时降级跳过缓存）
         String cachedValue = null;
@@ -350,8 +349,7 @@ public class OptimizeServiceImpl implements OptimizeService {
      * 构建缓存 key
      */
     private String buildCacheKey(Long resumeId, String targetJob) {
-        String jobKey = (targetJob == null || targetJob.trim().isEmpty()) ? "general" : targetJob.trim();
-        return "optimize:" + resumeId + ":" + jobKey;
+        return CacheKeys.optimize(resumeId, targetJob);
     }
 
     /**

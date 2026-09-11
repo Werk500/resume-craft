@@ -3,6 +3,7 @@ package com.resumecraft.server.resume.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.security.AuthContext;
+import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
 import com.resumecraft.server.file.FileStorageService;
@@ -319,11 +320,11 @@ public class ResumeServiceImpl implements ResumeService {
     private void evictResumeCaches(Long resumeId) {
         try {
             List<String> keys = new ArrayList<>();
-            keys.add("diagnose:" + resumeId);
-            keys.add("diagnose:null:" + resumeId);
-            addKeys(keys, "optimize:" + resumeId + ":*");
-            addKeys(keys, "targeted-optimize:" + resumeId + ":*");
-            addKeys(keys, "match:" + resumeId + ":*");
+            keys.add(CacheKeys.diagnose(resumeId));
+            keys.add(CacheKeys.diagnoseNull(resumeId));
+            addKeys(keys, CacheKeys.optimizePattern(resumeId));
+            addKeys(keys, CacheKeys.targetedOptimizePattern(resumeId));
+            addKeys(keys, CacheKeys.matchPattern(resumeId));
 
             if (!keys.isEmpty()) {
                 stringRedisTemplate.delete(keys);
