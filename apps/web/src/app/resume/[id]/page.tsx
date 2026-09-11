@@ -24,6 +24,10 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
   }, [resumeId]);
 
   async function handleDiagnose() {
+    if (resume?.ocrStatus === "REVIEW") {
+      setError("图片识别置信度较低，请先核对识别内容再诊断");
+      return;
+    }
     setDiagnosing(true);
     setError(null);
     try {
@@ -36,6 +40,10 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
   }
 
   async function handleOptimize() {
+    if (resume?.ocrStatus === "REVIEW") {
+      setError("图片识别置信度较低，请先核对识别内容再优化");
+      return;
+    }
     setOptimizing(true);
     setError(null);
     try {
@@ -79,6 +87,25 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
         </div>
       )}
 
+      {resume?.ocrStatus === "REVIEW" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div>
+            <p className="text-sm font-medium text-amber-700">
+              ⚠️ 图片识别置信度较低，已暂停 AI 诊断与优化
+            </p>
+            <p className="mt-0.5 text-xs text-amber-600">
+              模糊扫描件不会参与自动评分，请先人工核对识别内容。
+            </p>
+          </div>
+          <Link
+            href={`/resume/${resumeId}/review`}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          >
+            去核对识别内容
+          </Link>
+        </div>
+      )}
+
       {resume && (
         <div className="grid gap-4 lg:grid-cols-2">
           {/* 左列：原始简历 */}
@@ -117,7 +144,8 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
               {!diagnosis && !diagnosing && (
                 <button
                   onClick={handleDiagnose}
-                  className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                  disabled={resume?.ocrStatus === "REVIEW"}
+                  className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   开始诊断
                 </button>
@@ -143,6 +171,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                   </ul>
                   <button
                     onClick={handleDiagnose}
+                    disabled={resume?.ocrStatus === "REVIEW"}
                     className="mt-3 text-xs text-blue-600 hover:underline"
                   >
                     重新诊断
@@ -163,7 +192,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                 />
                 <button
                   onClick={handleOptimize}
-                  disabled={optimizing}
+                  disabled={optimizing || resume?.ocrStatus === "REVIEW"}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {optimizing ? "优化中…" : "优化"}

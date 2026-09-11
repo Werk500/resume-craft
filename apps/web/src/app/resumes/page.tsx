@@ -49,7 +49,7 @@ export default function ResumesPage() {
         {resumes.map((r) => (
           <Link
             key={r.id}
-            href={`/resume/${r.id}`}
+            href={r.ocrStatus === "REVIEW" ? `/resume/${r.id}/review` : `/resume/${r.id}`}
             className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md"
           >
             <div className="flex items-center gap-4">
@@ -57,7 +57,14 @@ export default function ResumesPage() {
                 📄
               </div>
               <div>
-                <p className="font-medium text-slate-800">{r.fileName}</p>
+                <p className="flex items-center gap-2 font-medium text-slate-800">
+                  {r.fileName}
+                  {r.ocrStatus === "REVIEW" && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      待核对识别内容
+                    </span>
+                  )}
+                </p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {r.fileType.toUpperCase()} ·{" "}
                   {r.parsedName ? `${r.parsedName} · ` : ""}

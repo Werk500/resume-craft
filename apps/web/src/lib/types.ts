@@ -1,3 +1,10 @@
+/** OCR 分块（图片简历） */
+export interface OcrBlock {
+  text: string;
+  confidence: number | null;
+  reason: string | null;
+}
+
 /** 简历 */
 export interface Resume {
   id: number;
@@ -8,6 +15,11 @@ export interface Resume {
   parsedPhone: string | null;
   rawText: string;
   createTime: string;
+  ocrConfidence?: number | null;
+  ocrBlocksJson?: string | null;
+  /** OK / REVIEW：REVIEW 时需人工核对图片识别内容后才能诊断/匹配 */
+  ocrStatus?: string | null;
+  ocrBlocks?: OcrBlock[] | null;
 }
 
 /** AI 诊断响应 */

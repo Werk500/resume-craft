@@ -1,24 +1,13 @@
 "use client";
 
 import { useState, useRef } from "react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8088";
-
-interface ResumeResponse {
-  id: number;
-  fileName: string;
-  fileType: string;
-  parsedName: string | null;
-  parsedEmail: string | null;
-  parsedPhone: string | null;
-  rawText: string;
-  createdAt: string;
-}
+import { API_BASE } from "@/lib/api";
+import type { Resume } from "@/lib/types";
 
 export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<ResumeResponse | null>(null);
+  const [result, setResult] = useState<Resume | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,15 +18,22 @@ export default function UploadPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const res = await fetch(`${API_BASE}/api/v1/resume/upload`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return;
+      }
       const json = await res.json();
       if (!res.ok || json.code !== 200) {
         throw new Error(json.message || "上传失败");
       }
-      setResult(json.data as ResumeResponse);
+      setResult(json.data as Resume);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "未知错误");
     } finally {
@@ -71,7 +67,9 @@ export default function UploadPage() {
         {/* Header */}
         <header className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">上传简历</h1>
-          <p className="mt-2 text-sm text-slate-500">支持 PDF、Word（暂不支持图片 OCR）</p>
+          <p className="mt-2 text-sm text-slate-500">
+            支持 PDF、Word、图片（图片走 OCR，低置信度需人工核对后才会参与评分）
+          </p>
         </header>
 
         {/* Upload Area */}
@@ -104,7 +102,7 @@ export default function UploadPage() {
                 </svg>
               </div>
               <p className="text-lg font-medium text-slate-700">拖拽文件到此处，或点击选择</p>
-              <p className="mt-1 text-xs text-slate-400">PDF / Word / 图片，最大 10MB</p>
+              <p className="mt-1 text-xs text-slate-400">PDF / Word / PNG / JPG，最大 10MB</p>
             </>
           )}
         </section>
@@ -122,12 +120,21 @@ export default function UploadPage() {
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
               <h2 className="text-lg font-semibold text-white">📄 解析成功</h2>
               <p className="text-xs text-blue-100">id={result.id} · {result.fileType.toUpperCase()}</p>
-              <a
-                href={`/resume/${result.id}`}
-                className="mt-3 inline-block rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/30"
-              >
-                🤖 去 AI 诊断 & 优化 →
-              </a>
+              {result.ocrStatus === "REVIEW" ? (
+                <a
+                  href={`/resume/${result.id}/review`}
+                  className="mt-3 inline-block rounded-full bg-amber-400 px-4 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-300"
+                >
+                  ⚠️ 识别置信度较低，去人工核对 →
+                </a>
+              ) : (
+                <a
+                  href={`/resume/${result.id}`}
+                  className="mt-3 inline-block rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/30"
+                >
+                  🤖 去 AI 诊断 & 优化 →
+                </a>
+              )}
             </div>
 
             {/* Meta info grid */}
