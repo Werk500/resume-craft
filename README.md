@@ -1,5 +1,7 @@
 # AI 简历设计与优化软件（resume-craft）
 
+![CI](https://github.com/Werk500/resume-craft/actions/workflows/ci.yml/badge.svg)
+
 面向校招场景的一站式 AI 简历工具：**上传解析 → AI 诊断 → 一键优化 → 岗位匹配 → 定向优化 → 版本管理 → 投递跟踪**，全流程闭环，匹配结果可解释、可复现。
 
 ## 功能概览
@@ -64,6 +66,8 @@
 │   │   ├── application/        # 投递服务 :8084
 │   │   ├── start-services.ps1  # 一键构建 + 启动 + 健康检查
 │   │   ├── stop-services.ps1   # 停止全部服务
+│   │   ├── demo.ps1            # 一键演示完整闭环（诊断/匹配/优化/投递）
+│   │   ├── reset-demo.ps1      # 重置演示账号数据 + 清理缓存
 │   │   ├── smoke-test.ps1      # 冒烟测试
 │   │   └── verify-interfaces.ps1
 │   └── web/                    # 前端 Next.js 应用 :3001
@@ -134,9 +138,44 @@ pwsh ./stop-services.ps1 -Force
 5. 定向优化 → 查看「优化前 → 优化后」提升报告与改动原因
 6. 版本历史并排 Diff → 导出 PDF / DOCX → 记录投递并跟踪状态
 
+## 测试
+
+后端单元测试（纯 Mockito，无需 MySQL/Redis/Nacos）：
+
+```powershell
+cd apps/server
+mvn -B test
+```
+
+覆盖内容：匹配引擎 40/40/20 公式与硬性条件封顶、AI 失败降级、Feign 跨服务错误透传、OCR 置信度阈值判定、JD 种子数据契约（共 21 个用例）。
+
+CI（GitHub Actions）在每次 push / PR 时执行后端 `mvn -B test` 与前端 `npm ci && npm run build`。
+
+## 一键演示
+
+后端已启动时：
+
+```powershell
+cd apps/server
+pwsh ./demo.ps1
+```
+
+脚本会自动完成：注册/登录演示账号 → 创建简历 → AI 诊断 → 选择岗位 → 匹配 → 定向优化 → 优化前后提升对比 → 记录投递并统计。
+
+| 参数 | 说明 |
+|---|---|
+| `-StartServices` | 自动启动后端（跳过构建） |
+| `-KeepData` | 演示结束后保留演示简历（默认级联清理） |
+
+重置演示数据与缓存：
+
+```powershell
+pwsh ./reset-demo.ps1
+```
+
 ## 已知限制与后续规划
 
-- 自动化测试与 CI 待补齐（当前提供 `smoke-test.ps1` / `verify-interfaces.ps1` 手工验收脚本）
+- 集成测试（Testcontainers 级别的服务间联调）与前端组件测试待补充
 - 可观测性与治理待加强：跨服务 traceId、Prometheus 指标、网关限流、AI 调用熔断/重试
 - 目前依赖本机中间件启动，Dockerfile / 一键 Compose 全套部署待完善
 - 登录方式目前仅用户名密码，未接入第三方登录
