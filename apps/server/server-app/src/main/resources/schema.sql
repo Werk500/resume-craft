@@ -33,8 +33,9 @@ CREATE TABLE IF NOT EXISTS resume_version (
     optimized_content TEXT         COMMENT '优化后内容',
     match_score       DOUBLE       COMMENT '匹配度得分',
     create_time       DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_version_user (user_id)
-);
+      INDEX idx_version_user (user_id),
+      INDEX idx_version_resume (resume_id)
+  );
 
 -- AI 诊断报告（数据归属：用户）
 CREATE TABLE IF NOT EXISTS diagnosis (
@@ -77,8 +78,9 @@ CREATE TABLE IF NOT EXISTS match_result (
     hard_requirement_score DOUBLE COMMENT '硬性条件达标分',
     match_explanation      TEXT   COMMENT '匹配解释（可解释归因）',
     create_time            DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_match_user (user_id)
-);
+      INDEX idx_match_user (user_id),
+      INDEX idx_match_resume_job (resume_id, job_id)
+  );
 
 -- 投递记录（数据归属：用户）
 CREATE TABLE IF NOT EXISTS application_record (
@@ -91,8 +93,9 @@ CREATE TABLE IF NOT EXISTS application_record (
     status            VARCHAR(30) NOT NULL COMMENT 'pending/interviewing/rejected/no_response/accepted',
     notes             VARCHAR(500) COMMENT '备注',
     create_time       DATETIME    DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_application_user (user_id)
-);
+      INDEX idx_application_user (user_id),
+      INDEX idx_application_user_status (user_id, status)
+  );
 
 -- 用户账号（M5）
 CREATE TABLE IF NOT EXISTS sys_user (

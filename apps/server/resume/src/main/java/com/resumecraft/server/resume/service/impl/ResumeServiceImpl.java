@@ -20,6 +20,8 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.EmptyFileException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -56,6 +59,10 @@ public class ResumeServiceImpl implements ResumeService {
     private DiagnosisMapper diagnosisMapper;
     @Resource
     private ResumeVersionMapper resumeVersionMapper;
+    @Resource
+    private JdbcTemplate jdbcTemplate;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
     @Resource
     private ObjectMapper objectMapper;
 
@@ -193,6 +200,17 @@ public class ResumeServiceImpl implements ResumeService {
         log.info("开始删除简历: id={}, userId={}, fileName={}",
                 id, resume.getUserId(), resume.getFileName());
 
+        // 关联数据清理：投递记录关联版本，需先于版本删除；匹配记录直接按简历清理
+        // （跨服务但同库，这里用 JdbcTemplate 避免反向依赖 job-match / application 模块）
+        int applicationDeleted = jdbcTemplate.update(
+                "DELETE FROM application_record WHERE user_id = ? AND resume_version_id IN " +
+                        "(SELECT id FROM resume_version WHERE resume_id = ?)",
+                resume.getUserId(), id);
+        int matchDeleted = jdbcTemplate.update(
+                "DELETE FROM match_result WHERE user_id = ? AND resume_id = ?",
+                resume.getUserId(), id);
+        log.info("删除关联投递记录: {} 条, 匹配记录: {} 条", applicationDeleted, matchDeleted);
+
         //2.删除关联的简历版本记录
         int versionDeleted = resumeVersionMapper.delete(
                 new LambdaQueryWrapper<ResumeVersion>()
@@ -216,6 +234,7 @@ public class ResumeServiceImpl implements ResumeService {
         } catch (Exception e) {
             log.error("文件删除失败: filePath={}, error={}", resume.getFilePath(), e.getMessage(), e);
         }
+        evictResumeCaches(id);
         log.info("简历删除成功: id={}", id);
     }
 
@@ -265,6 +284,8 @@ public class ResumeServiceImpl implements ResumeService {
 
         resumeMapper.updateById(resume);
 
+        // 正文已变更，清理诊断/优化/匹配缓存，避免返回过期结果
+        evictResumeCaches(resumeId);
         fillOcrBlocks(resume);
         return resume;
     }
@@ -287,6 +308,36 @@ public class ResumeServiceImpl implements ResumeService {
             }
         }
         return "OK";
+    }
+
+    /**
+     * 清理该简历相关的 Redis 缓存（诊断 / 优化 / 定向优化 / 匹配）。
+     *
+     * <p>说明：这里用 keys() 是为了实现简单；生产环境应改用 SCAN 迭代，避免大 key 空间阻塞。
+     */
+    private void evictResumeCaches(Long resumeId) {
+        try {
+            List<String> keys = new ArrayList<>();
+            keys.add("diagnose:" + resumeId);
+            keys.add("diagnose:null:" + resumeId);
+            addKeys(keys, "optimize:" + resumeId + ":*");
+            addKeys(keys, "targeted-optimize:" + resumeId + ":*");
+            addKeys(keys, "match:" + resumeId + ":*");
+
+            if (!keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+                log.info("已清理简历相关缓存: resumeId={}, 清理key数={}", resumeId, keys.size());
+            }
+        } catch (Exception e) {
+            log.warn("清理简历缓存失败: resumeId={}", resumeId, e);
+        }
+    }
+
+    private void addKeys(List<String> target, String pattern) {
+        var matched = stringRedisTemplate.keys(pattern);
+        if (matched != null && !matched.isEmpty()) {
+            target.addAll(matched);
+        }
     }
 
     private Resume fillOcrBlocks(Resume r) {
