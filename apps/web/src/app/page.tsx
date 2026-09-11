@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { FileSearch, Sparkles, Target, UploadCloud, Briefcase, Send } from "lucide-react";
 import Link from "next/link";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8088";
+import { API_BASE } from "@/lib/api";
 
 const features = [
   { icon: UploadCloud, title: "简历上传", desc: "拖拽上传 PDF / Word，自动解析全文+联系信息", path: "/upload", done: true },
