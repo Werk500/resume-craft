@@ -1,12 +1,14 @@
 package com.resumecraft.server.resume.domain;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.resumecraft.server.resume.parser.dto.OcrBlock;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 简历解析记录实体。
@@ -43,4 +45,12 @@ public class Resume {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
+
+    private Double ocrConfidence;
+    private String ocrBlocksJson;
+    private String ocrStatus; // OK / REVIEW
+
+    // 非数据库字段，用于前端展示
+    @TableField(exist = false)
+    private List<OcrBlock> ocrBlocks;
 }

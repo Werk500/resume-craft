@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS resume (
     parsed_email VARCHAR(100) COMMENT '解析出的邮箱',
     parsed_phone VARCHAR(50)  COMMENT '解析出的电话',
     raw_text     TEXT         COMMENT '解析出的全文',
+    ocr_confidence  DOUBLE   COMMENT 'OCR 整体置信度 0~1（仅图片简历）',
+    ocr_blocks_json MEDIUMTEXT COMMENT 'OCR 分块 JSON（仅图片简历）',
+    ocr_status      VARCHAR(20) NOT NULL DEFAULT 'OK' COMMENT 'OCR 状态：OK/REVIEW',
     create_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_resume_user (user_id)

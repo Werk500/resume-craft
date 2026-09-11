@@ -51,4 +51,9 @@ public class MockAiServiceImpl implements AiService {
         return Flux.just("【Mock】", "流式", "诊断", "结果", "模拟", "片段")
                 .delayElements(Duration.ofMillis(150));
     }
+
+    @Override
+    public String ocrRecognize(byte[] pngBytes, String ocrBlockSystem) {
+        return "{\"blocks\":[{\"text\":\"模拟简历：张三，Java 后端开发\",\"confidence\":0.95,\"reason\":\"mock数据\"}],\"overallConfidence\":0.95}";
+    }
 }

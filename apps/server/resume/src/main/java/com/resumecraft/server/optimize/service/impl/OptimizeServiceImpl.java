@@ -103,6 +103,10 @@ public class OptimizeServiceImpl implements OptimizeService {
         Resume resume;
         try {
             resume = resumeService.findById(resumeId);
+
+            if ("REVIEW".equals(resume.getOcrStatus())) {
+                throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
+            }
         }
         catch (IllegalArgumentException e) {
             // 业务场景：简历不存在 → 写空值缓存（防穿透）→ 重抛原异常
@@ -241,6 +245,10 @@ public class OptimizeServiceImpl implements OptimizeService {
                     log.warn("空值缓存写入失败: {}", e.getMessage());
                 }
                 throw new IllegalArgumentException("简历不存在: resumeId=" + resumeId);
+            }
+
+            if ("REVIEW".equals(resume.getOcrStatus())) {
+                throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
             }
 
             job = jobMapper.selectById(jobId);

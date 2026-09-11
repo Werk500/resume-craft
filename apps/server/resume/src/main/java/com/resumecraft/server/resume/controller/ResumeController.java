@@ -4,18 +4,12 @@ import java.io.IOException;
 import java.util.List;
 
 import com.resumecraft.server.common.security.AuthContext;
+import com.resumecraft.server.resume.parser.dto.UpdateResumeTextRequest;
 import com.resumecraft.server.resume.service.ResumeService;
 import com.resumecraft.server.resume.dto.CreateFromTextRequest;
 import jakarta.validation.Valid;
 import jakarta.annotation.Resource;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.resumecraft.server.common.ApiResponse;
@@ -68,5 +62,11 @@ public class ResumeController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         resumeService.delete(id);
         return ApiResponse.ok();
+    }
+
+    @PutMapping("/{id}/text")
+    public ApiResponse<Resume> UpdateText(@PathVariable Long id, @Valid @RequestBody UpdateResumeTextRequest request ) {
+        Resume resume = resumeService.updateText(id, request.getRawText());
+        return ApiResponse.ok(resume);
     }
 }

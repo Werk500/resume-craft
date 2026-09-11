@@ -1,6 +1,7 @@
 package com.resumecraft.server.resume.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
@@ -10,7 +11,10 @@ import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
 import com.resumecraft.server.resume.extractor.ResumeInfoExtractor;
+import com.resumecraft.server.resume.parser.ConfidenceParser;
 import com.resumecraft.server.resume.parser.ResumeParser;
+import com.resumecraft.server.resume.parser.dto.OcrBlock;
+import com.resumecraft.server.resume.parser.dto.OcrParseResult;
 import com.resumecraft.server.resume.service.ResumeService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +56,8 @@ public class ResumeServiceImpl implements ResumeService {
     private DiagnosisMapper diagnosisMapper;
     @Resource
     private ResumeVersionMapper resumeVersionMapper;
+    @Resource
+    private ObjectMapper objectMapper;
 
     /**
      * 上传并解析简历。
@@ -82,25 +88,40 @@ public class ResumeServiceImpl implements ResumeService {
 
             String filePath = fileStorageService.store(new ByteArrayInputStream(fileBytes), originalName);
 
-            String rawText = parser.parse(new ByteArrayInputStream(fileBytes));
-
-            // 2. 提取信息
-            String email = infoExtractor.extractEmail(rawText);
-            String phone = infoExtractor.extractPhone(rawText);
-
-            // 3. 构建并保存（MyBatis-Plus）
-            Resume resume = Resume.builder()
+            //构建Resume基础字段
+            Resume resume1 = Resume.builder()
                     .userId(userId)
                     .fileName(originalName)
-                    .filePath(filePath)
                     .fileType(fileType)
-                    .rawText(rawText)
-                    .parsedEmail(email)
-                    .parsedPhone(phone)
+                    .filePath(filePath)
                     .build();
-            resumeMapper.insert(resume);
-            log.info("简历保存成功: id={}, 文件={}", resume.getId(), originalName);
-            return resume;
+
+            //结构化解析(图片OCR)
+            if (parser instanceof ConfidenceParser confidenceParser){
+
+                OcrParseResult result = confidenceParser.parseWithBlocks(new ByteArrayInputStream(fileBytes));
+                resume1.setRawText(result.getRawText());
+                resume1.setOcrConfidence(result.getOverallConfidence());
+                resume1.setOcrBlocksJson(objectMapper.writeValueAsString(result.getBlocks()));
+                resume1.setOcrStatus(determineOcrStatus(result));
+            }//普通解析（PDF / Word）
+            else {
+                String rawText = parser.parse(new ByteArrayInputStream(fileBytes));
+                resume1.setRawText(rawText);
+                resume1.setOcrStatus("OK");
+            }
+
+            // 2. 提取信息
+            String email = infoExtractor.extractEmail(resume1.getRawText());
+            String phone = infoExtractor.extractPhone(resume1.getRawText());
+
+
+            resumeMapper.insert(resume1);
+            log.info("简历保存成功: id={}, 文件={}", resume1.getId(), originalName);
+
+            fillOcrBlocks(resume1);
+
+            return resume1;
         } catch (IOException e) {
             log.error("简历处理失败: {}", originalName, e);
             throw new RuntimeException(e);
@@ -117,16 +138,21 @@ public class ResumeServiceImpl implements ResumeService {
             // 不存在或非本人资源统一返回"不存在"，避免泄露资源是否存在
             throw new IllegalArgumentException("简历不存在：id=" + id);
         }
+        fillOcrBlocks(r);
         return r;
     }
 
     /** 简历列表（仅当前用户，倒序） */
     @Override
     public List<Resume> findAll() {
-        return resumeMapper.selectList(
+        List<Resume> list = resumeMapper.selectList(
                 new LambdaQueryWrapper<Resume>()
                         .eq(Resume::getUserId, AuthContext.getUserId())
-                        .orderByDesc(Resume::getId));
+                        .orderByDesc(Resume::getId)
+        );
+
+        list.forEach(this::fillOcrBlocks);
+        return list;
     }
 
     // ---- 私有工具 ---- //
@@ -217,10 +243,61 @@ public class ResumeServiceImpl implements ResumeService {
                 .fileName(finalFileName)
                 .filePath(filePath)
                 .fileType("md")
-                .rawText(rawText).build();
+                .rawText(rawText)
+                .ocrStatus("OK")
+                .build();
         resumeMapper.insert(resume);
         log.info("对话创建简历成功: id={}, userId={}", resume.getId(), userId);
         return resume;
 
+    }
+
+    @Override
+    public Resume updateText(Long resumeId, String rawText) {
+        if (rawText == null  || rawText.isBlank()) {
+            throw new IllegalArgumentException("简历内容不能为空");
+        }
+
+        Resume resume = findById(resumeId);
+        resume.setRawText(rawText);
+        resume.setOcrStatus("OK");   // 人工核对后置为 OK
+        resume.setUpdateTime(LocalDateTime.now());
+
+        resumeMapper.updateById(resume);
+
+        fillOcrBlocks(resume);
+        return resume;
+    }
+
+    /**
+     * 判断 OCR 状态：整体 < 0.6 或任一 block < 0.5 → REVIEW，否则 OK
+     */
+    private String determineOcrStatus(OcrParseResult result) {
+        Double overall = result.getOverallConfidence();
+        if (overall == null || overall < 0.6) {
+            return "REVIEW";
+        }
+        List<OcrBlock> blocks = result.getBlocks();
+        if (blocks != null) {
+            for (OcrBlock block : blocks) {
+                Double c = block.getConfidence();
+                if (c == null || c < 0.5) {
+                    return "REVIEW";
+                }
+            }
+        }
+        return "OK";
+    }
+
+    private Resume fillOcrBlocks(Resume r) {
+        if (r != null && r.getOcrBlocksJson() != null && !r.getOcrBlocksJson().isBlank()) {
+            try {
+                r.setOcrBlocks(objectMapper.readValue(r.getOcrBlocksJson(),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, OcrBlock.class)));
+            } catch (Exception e) {
+                log.warn("OCR blocks 反序列化失败, resumeId={}", r.getId(), e);
+            }
+        }
+        return r;
     }
 }

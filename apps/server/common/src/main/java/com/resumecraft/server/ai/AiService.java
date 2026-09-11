@@ -21,4 +21,7 @@ public interface AiService {
      * 流式聊天：返回 token 序列
      */
     Flux<String> chatStream(String systemPrompt, String userPrompt);
+
+
+    String ocrRecognize(byte[] pngBytes, String ocrBlockSystem);
 }

@@ -15,4 +15,6 @@ public interface ResumeService {
     void delete(Long id);
 
     Resume saveFromText(Long userId, String rawText, String fileName);
+
+    Resume updateText(Long resumeId, String rawText);
 }

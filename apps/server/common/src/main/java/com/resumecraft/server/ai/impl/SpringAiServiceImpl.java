@@ -5,8 +5,10 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MimeTypeUtils;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -95,6 +97,34 @@ public class SpringAiServiceImpl implements AiService {
         } catch (Exception e) {
             log.error("启动流式AI调用失败", e);
             return Flux.just("[错误] " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String ocrRecognize(byte[] imageBytes, String ocrBlockSystem) {
+
+        if (imageBytes == null || ocrBlockSystem == null) {
+            throw new IllegalArgumentException("图片内容为空");
+        }
+
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() ->
+                chatClient.prompt()
+                        .system(ocrBlockSystem)
+                        .user(u -> u.text("请识别这张简历图片中的文字，并按系统提示返回结构化 JSON")
+                                .media(MimeTypeUtils.IMAGE_JPEG, new ByteArrayResource(imageBytes)))
+                        .call()
+                        .content(), aiExecutor);
+
+        try {
+            return future.get(120,TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("OCR调用被中断", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("OCR调用失败: " + e.getCause().getMessage(), e.getCause());
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new RuntimeException("OCR识别超时，请更换更清晰的图片重试", e);
         }
     }
 

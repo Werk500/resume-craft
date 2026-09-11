@@ -15,6 +15,7 @@ import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.domain.MatchResultMapper;
 import com.resumecraft.server.job.match.MatchEngine;
 import com.resumecraft.server.job.service.MatchService;
+import feign.FeignException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
@@ -85,7 +87,7 @@ public class MatchServiceImpl implements MatchService {
         String resumeText;
         Long resumeUserId;
         if (versionId != null) {
-            ResumeVersionDTO version = resumeClient.getVersion(versionId);
+            ResumeVersionDTO version = callResume(() -> resumeClient.getVersion(versionId));
             if (version == null) {
                 throw new RuntimeException("版本不存在，versionId: " + versionId);
             }
@@ -96,9 +98,9 @@ public class MatchServiceImpl implements MatchService {
             resumeUserId = version.getUserId();
         }
         else {
-            ResumeBriefDTO brief = resumeClient.getResume(resumeId);
+            ResumeBriefDTO brief = callResume(() -> resumeClient.getResume(resumeId));
             if (brief == null) {
-                throw new RuntimeException("简历不存在，resumeId: " + resumeId);
+                throw new IllegalArgumentException("简历不存在，resumeId: " + resumeId);
             }
             resumeText =buildResumeText(brief);
             resumeUserId = brief.getUserId();
@@ -135,7 +137,6 @@ public class MatchServiceImpl implements MatchService {
         } else {
             log.info("强制刷新模式，跳过缓存: resumeId={}, jobId={}, versionId={}", resumeId, jobId, versionId);
         }
-
 //        //5.本轮先保留 AI 打分（P2-2 才替换成 MatchEngine）
 //        String userPrompt = PromptTemplates.matchUser(
 //                resumeText, job.getTitle(), job.getDescription(), job.getRequirements());
@@ -213,4 +214,39 @@ public class MatchServiceImpl implements MatchService {
 //    private String getString(JsonNode json, String key) {
 //        return json.has(key) && !json.get(key).isNull() ? json.get(key).asText() : null;
 //    }
+
+    /**
+     * 包装 Feign 调用，把远端 4xx 错误转成本地业务异常。
+     *
+     * <p>Feign 默认会把 4xx 抛成 FeignException，message 是通用描述；
+     * 这里解析响应体里的 message 字段，重新抛成 IllegalArgumentException，
+     * 让 GlobalExceptionHandler 能转成 400 + 原始 message 返回前端。
+     */
+    private <T> T callResume(Supplier<T> supplier) {
+        try {
+            return supplier.get();
+        } catch (FeignException e) {
+            String message = extractMessage(e);
+            if (e.status() >= 400 && e.status() < 500) {
+                // 业务拒绝：交给 GlobalExceptionHandler 转成 400 + message
+                throw new IllegalArgumentException(message);
+            }
+            throw new RuntimeException("简历服务暂时不可用，请稍后重试", e);
+        }
+    }
+
+    /**
+     * 从 FeignException 的响应体里提取 message。
+     * <p>响应体形如 {"code":400,"message":"...","data":null}。
+     * 解析失败时返回兜底文案。
+     */
+    private String extractMessage(FeignException e) {
+        try {
+            JsonNode node = objectMapper.readTree(e.contentUTF8());
+            String msg = node.path("message").asText(null);
+            if (msg != null && !msg.isBlank()) return msg;
+        } catch (Exception ignored) {
+        }
+        return "简历当前状态不允许匹配，请先核对解析内容";
+    }
 }

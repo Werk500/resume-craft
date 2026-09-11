@@ -309,7 +309,6 @@ public class PromptTemplates {
                     "4. 保持专业、清晰的表达方式\n" +
                     "5. 如果用户提供的信息不完整，继续提问缺失的关键信息";
 
-
     /**
      * 拼接用户提示词
      * @param messages 对话历史
@@ -333,6 +332,17 @@ public class PromptTemplates {
 
         return prompt.toString();
     }
+
+    //OCR识别系统提示词
+    public static final String OCR_BLOCK_SYSTEM =
+            "你是一个专业的OCR识别助手，负责从图片中提取简历文字内容。\n" +
+                    "请遵循以下规则：\n" +
+                    "1. 仔细识别图片中的文字内容，保持原有格式和段落结构\n" +
+                    "2. 对每个识别块给出置信度评分（0-1之间），字迹模糊、遮挡、扭曲的内容给低分\n" +
+                    "3. 必须返回严格的JSON格式，禁止使用markdown围栏：\n" +
+                    "   {\"blocks\":[{\"text\":\"...\",\"confidence\":0.92,\"reason\":\"清晰\"}],\"overallConfidence\":0.9}\n" +
+                    "4. reason字段说明置信度高低的原因（如：\"清晰\"、\"字迹模糊\"、\"部分遮挡\"、\"扭曲\"等）\n" +
+                    "5. 将识别的文本按逻辑顺序分块，保持简历的结构完整性";
 
 
 

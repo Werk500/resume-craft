@@ -99,6 +99,10 @@ public class DiagnosisServiceImpl implements DiagnosisService {
             throw new IllegalArgumentException("简历不存在: " + resumeId);
         }
 
+        if ("REVIEW".equals(resume.getOcrStatus())) {
+            throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
+        }
+
         // 数据存在，删除可能存在的空值缓存（数据已恢复）
         deleteNullCache(resumeId);
 
@@ -179,6 +183,10 @@ public class DiagnosisServiceImpl implements DiagnosisService {
         if (resume == null) {
             cacheNullValue(resumeId);
             return Flux.error(new IllegalArgumentException("简历不存在: " + resumeId));
+        }
+
+        if ("REVIEW".equals(resume.getOcrStatus())) {
+            throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
         }
 
         // 数据存在，删除可能存在的空值缓存（数据已恢复）

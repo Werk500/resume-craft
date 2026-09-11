@@ -29,27 +29,46 @@ public class InternalResumeController {
             throw new IllegalArgumentException("简历不存在: " + id);
         }
 
-        ResumeBriefDTO resumeBriefDTO = new ResumeBriefDTO();
-        resumeBriefDTO.setId(resume.getId());
-        resumeBriefDTO.setUserId(resume.getUserId());
-        resumeBriefDTO.setFileName(resume.getFileName());
-        resumeBriefDTO.setFileType(resume.getFileType());
-        resumeBriefDTO.setParsedName(resume.getParsedName());
-        resumeBriefDTO.setParsedEmail(resume.getParsedEmail());
-        resumeBriefDTO.setParsedPhone(resume.getParsedPhone());
-        resumeBriefDTO.setRawText(resume.getRawText());
+        if ("REVIEW".equals(resume.getOcrStatus())) {
+            throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
+        }
 
-        return resumeBriefDTO;
+//        ResumeBriefDTO resumeBriefDTO = new ResumeBriefDTO();
+//        resumeBriefDTO.setId(resume.getId());
+//        resumeBriefDTO.setUserId(resume.getUserId());
+//        resumeBriefDTO.setFileName(resume.getFileName());
+//        resumeBriefDTO.setFileType(resume.getFileType());
+//        resumeBriefDTO.setParsedName(resume.getParsedName());
+//        resumeBriefDTO.setParsedEmail(resume.getParsedEmail());
+//        resumeBriefDTO.setParsedPhone(resume.getParsedPhone());
+//        resumeBriefDTO.setRawText(resume.getRawText());
+
+        return ResumeBriefDTO.builder()
+                .id(resume.getId())
+                .userId(resume.getUserId())
+                .fileName(resume.getFileName())
+                .fileType(resume.getFileType())
+                .parsedName(resume.getParsedName())
+                .parsedEmail(resume.getParsedEmail())
+                .parsedPhone(resume.getParsedPhone())
+                .rawText(resume.getRawText())
+                .build();
     }
 
     @GetMapping("/version/{id}")
     public ResumeVersionDTO getVersion(@PathVariable Long id){
+
         ResumeVersion resumeVersion = resumeVersionMapper.selectById(id);
         if (resumeVersion == null){
             throw new RuntimeException("版本不存在");
         }
 
-        ResumeVersionDTO versionDTO = ResumeVersionDTO.builder()
+        Resume resume = resumeMapper.selectById(resumeVersion.getResumeId());
+        if (resume != null && "REVIEW".equals(resume.getOcrStatus())) {
+            throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
+        }
+
+        return ResumeVersionDTO.builder()
                 .id(resumeVersion.getId())
                 .resumeId(resumeVersion.getResumeId())
                 .userId(resumeVersion.getUserId())
@@ -59,7 +78,5 @@ public class InternalResumeController {
                 .matchScore(resumeVersion.getMatchScore())
                 .createTime(resumeVersion.getCreateTime())
                 .build();
-
-        return versionDTO;
     }
 }
