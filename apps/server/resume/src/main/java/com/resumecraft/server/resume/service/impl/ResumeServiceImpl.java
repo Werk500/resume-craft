@@ -12,6 +12,7 @@ import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
 import com.resumecraft.server.resume.extractor.ResumeInfoExtractor;
 import com.resumecraft.server.resume.parser.ConfidenceParser;
+import com.resumecraft.server.resume.parser.OcrStatusDecider;
 import com.resumecraft.server.resume.parser.ResumeParser;
 import com.resumecraft.server.resume.parser.dto.OcrBlock;
 import com.resumecraft.server.resume.parser.dto.OcrParseResult;
@@ -110,7 +111,7 @@ public class ResumeServiceImpl implements ResumeService {
                 resume1.setRawText(result.getRawText());
                 resume1.setOcrConfidence(result.getOverallConfidence());
                 resume1.setOcrBlocksJson(objectMapper.writeValueAsString(result.getBlocks()));
-                resume1.setOcrStatus(determineOcrStatus(result));
+                resume1.setOcrStatus(OcrStatusDecider.determineOcrStatus(result));
             }//普通解析（PDF / Word）
             else {
                 String rawText = parser.parse(new ByteArrayInputStream(fileBytes));
@@ -290,25 +291,25 @@ public class ResumeServiceImpl implements ResumeService {
         return resume;
     }
 
-    /**
-     * 判断 OCR 状态：整体 < 0.6 或任一 block < 0.5 → REVIEW，否则 OK
-     */
-    private String determineOcrStatus(OcrParseResult result) {
-        Double overall = result.getOverallConfidence();
-        if (overall == null || overall < 0.6) {
-            return "REVIEW";
-        }
-        List<OcrBlock> blocks = result.getBlocks();
-        if (blocks != null) {
-            for (OcrBlock block : blocks) {
-                Double c = block.getConfidence();
-                if (c == null || c < 0.5) {
-                    return "REVIEW";
-                }
-            }
-        }
-        return "OK";
-    }
+//    /**
+//     * 判断 OCR 状态：整体 < 0.6 或任一 block < 0.5 → REVIEW，否则 OK
+//     */
+//    private String determineOcrStatus(OcrParseResult result) {
+//        Double overall = result.getOverallConfidence();
+//        if (overall == null || overall < 0.6) {
+//            return "REVIEW";
+//        }
+//        List<OcrBlock> blocks = result.getBlocks();
+//        if (blocks != null) {
+//            for (OcrBlock block : blocks) {
+//                Double c = block.getConfidence();
+//                if (c == null || c < 0.5) {
+//                    return "REVIEW";
+//                }
+//            }
+//        }
+//        return "OK";
+//    }
 
     /**
      * 清理该简历相关的 Redis 缓存（诊断 / 优化 / 定向优化 / 匹配）。
@@ -335,7 +336,7 @@ public class ResumeServiceImpl implements ResumeService {
 
     private void addKeys(List<String> target, String pattern) {
         var matched = stringRedisTemplate.keys(pattern);
-        if (matched != null && !matched.isEmpty()) {
+        if (!matched.isEmpty()) {
             target.addAll(matched);
         }
     }

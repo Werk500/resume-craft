@@ -107,7 +107,7 @@ public class ImageParser implements ConfidenceParser {
         cleanedResponse = cleanedResponse.trim();
         
         //解析JSON
-        Map<String, Object> jsonMap;
+        Map jsonMap;
         try {
             jsonMap = objectMapper.readValue(cleanedResponse, Map.class);
         } catch (Exception e) {
