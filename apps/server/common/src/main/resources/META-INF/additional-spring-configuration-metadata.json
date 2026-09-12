@@ -1,0 +1,13 @@
+{
+  "properties": [
+    { "name": "app.jwt.secret", "type": "java.lang.String", "description": "JWT 签名密钥（HS256，至少 32 字节）" },
+    { "name": "app.jwt.expire-seconds", "type": "java.lang.Long", "description": "JWT 有效期（秒）" },
+    { "name": "app.internal-token", "type": "java.lang.String", "description": "服务间内部调用令牌" },
+    { "name": "app.ai.mock", "type": "java.lang.Boolean", "description": "是否使用 Mock AI 实现" },
+    { "name": "app.ai.timeout.chat-seconds", "type": "java.lang.Long", "description": "AI 一次性调用超时（秒）" },
+    { "name": "app.ai.timeout.stream-seconds", "type": "java.lang.Long", "description": "AI 流式调用超时（秒）" },
+    { "name": "app.ai.timeout.ocr-seconds", "type": "java.lang.Long", "description": "OCR 视觉模型调用超时（秒）" },
+    { "name": "app.ai.retry.max-attempts", "type": "java.lang.Integer", "description": "AI 调用最大尝试次数（含首次）" },
+    { "name": "app.storage.upload-dir", "type": "java.lang.String", "description": "上传文件本地存储目录" }
+  ]
+}

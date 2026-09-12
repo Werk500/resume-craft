@@ -38,6 +38,13 @@ spring:
         options:
           model: ${AI_MODEL:deepseek-chat}
           temperature: 0.3
+    mock: false
+    timeout:
+        chat-seconds: 30      # 匹配语义评分：超时会降级为 50 分，不宜过长
+        stream-seconds: 60
+        ocr-seconds: 120
+    retry:
+        max-attempts: 1       # 匹配是轻量调用，不重试
   cloud:
     openfeign:
       client:
@@ -60,6 +67,12 @@ mybatis-plus:
 app:
   ai:
     mock: false
+    timeout:
+      chat-seconds: 30      # 匹配语义评分：超时降级为 50 分，不宜过长
+      stream-seconds: 60
+      ocr-seconds: 120
+    retry:
+      max-attempts: 1       # 匹配是轻量调用，不重试
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
     expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
@@ -80,4 +93,3 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-

@@ -58,6 +58,12 @@ mybatis-plus:
 app:
   ai:
     mock: false
+    timeout:
+      chat-seconds: 60      # 诊断 / 一键优化 / 定向优化（一次性调用）
+      stream-seconds: 90    # SSE 流式（诊断流式、对话创建）
+      ocr-seconds: 120      # 图片 OCR（视觉模型更慢）
+    retry:
+      max-attempts: 2       # 含首次的总尝试次数
   storage:
     upload-dir: uploads
   jwt:
