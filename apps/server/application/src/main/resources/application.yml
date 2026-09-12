@@ -27,6 +27,12 @@ spring:
         speech: none
         transcription: none
   cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 3000
+            readTimeout: 30000
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
@@ -47,5 +53,16 @@ app:
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
   level:
     com.resumecraft: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

@@ -3,6 +3,7 @@ package com.resumecraft.server.common.feign;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,17 @@ public class FeignInternalTokenConfig {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
 
     /**
+     * traceId 请求头（必须和 TraceIdFilter / TraceIdGlobalFilter 保持一致）
+     */
+    private static final String TRACE_ID_HEADER = "X-Trace-Id";
+
+    /**
+     * MDC 中 traceId 的 key（必须和 TraceIdFilter.TRACE_ID 一致）
+     */
+    private static final String TRACE_ID_MDC_KEY = "traceId";
+
+
+    /**
      * 创建 Feign 请求拦截器
      *
      * 每次 Feign 发起 HTTP 请求时，都会经过这个拦截器，
@@ -42,6 +54,12 @@ public class FeignInternalTokenConfig {
                 // 如果配置了 token，则添加到请求头
                 if (internalToken != null && !internalToken.isEmpty()) {
                     template.header(INTERNAL_TOKEN_HEADER, internalToken);
+                }
+
+                //traceId:从MDC取，透传给下游服务
+                String traceId = MDC.get(TRACE_ID_MDC_KEY);
+                if (traceId != null && !traceId.isEmpty()) {
+                    template.header(TRACE_ID_HEADER, traceId);
                 }
             }
         };

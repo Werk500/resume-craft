@@ -8,6 +8,11 @@ server:
 spring:
   application:
     name: resume-craft-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:123456}
 
   cloud:
     nacos:
@@ -17,6 +22,13 @@ spring:
     gateway:
       server:
         webflux:
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20      # 每秒补充 20 个令牌
+                redis-rate-limiter.burstCapacity: 40      # 突发容量
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -89,7 +101,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info,gateway,prometheus
   endpoint:
     health:
       show-details: always

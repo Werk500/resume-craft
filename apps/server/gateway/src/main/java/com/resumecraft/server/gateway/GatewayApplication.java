@@ -1,4 +1,4 @@
-package com.resumecraft.gateway;
+package com.resumecraft.server.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

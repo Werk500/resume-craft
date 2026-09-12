@@ -4,6 +4,7 @@ import com.resumecraft.server.ai.AiService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -16,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 
 /**
@@ -33,6 +35,15 @@ public class SpringAiServiceImpl implements AiService {
     @Resource
     private ThreadPoolTaskExecutor aiExecutor;
 
+    @Value("${app.ai.timeout.chat-seconds:60}")
+    private long chatTimeoutSeconds;
+    @Value("${app.ai.timeout.stream-seconds:60}")
+    private long streamTimeoutSeconds;
+    @Value("${app.ai.timeout.ocr-seconds:120}")
+    private long ocrTimeoutSeconds;
+    @Value("${app.ai.retry.max-attempts:2}")
+    private int maxAttempts;
+
     public SpringAiServiceImpl() {
         log.info("===== 已启用 [Spring AI] 真实大模型 =====");
     }
@@ -44,28 +55,19 @@ public class SpringAiServiceImpl implements AiService {
     @Override
     public String chat(String systemPrompt, String userPrompt) {
 
-        CompletableFuture<String> future = CompletableFuture.supplyAsync(() ->
-            chatClient.prompt()
-                    .system(systemPrompt)
-                    .user(userPrompt)
-                    .call()
-                    .content(),aiExecutor
+        return executeWithRetry(
+                "chat",
+                systemPrompt,
+                userPrompt,
+                () -> CompletableFuture.supplyAsync(() ->
+                                chatClient.prompt()
+                                        .system(systemPrompt)
+                                        .user(userPrompt)
+                                        .call()
+                                        .content(),
+                        aiExecutor),
+                chatTimeoutSeconds
         );
-
-        try {
-            return future.get(60, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("AI调用被中断", e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException("AI调用失败", e.getCause());
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            log.error("AI调用超时, systemPrompt={}, userPrompt={}",
-                    systemPrompt.substring(0, Math.min(50, systemPrompt.length())),
-                    userPrompt.substring(0, Math.min(50, userPrompt.length())));
-            throw new RuntimeException("AI服务响应超时，请稍后重试", e);
-        }
     }
 
     /**
@@ -89,7 +91,7 @@ public class SpringAiServiceImpl implements AiService {
                     .doOnNext(chunk -> log.debug("收到流式片段: {}", chunk))
                     .doOnComplete(() -> log.info("流式AI调用完成"))
                     .doOnError(error -> log.error("流式AI调用失败", error))
-                    .timeout(Duration.ofSeconds(60))  // 总超时控制
+                    .timeout(Duration.ofSeconds(streamTimeoutSeconds))  // 总超时控制
                     .onErrorResume(error -> {
                         log.error("流式AI调用出错", error);
                         return Flux.just("[错误] AI服务响应异常，请稍后重试");
@@ -107,25 +109,86 @@ public class SpringAiServiceImpl implements AiService {
             throw new IllegalArgumentException("图片内容为空");
         }
 
-        CompletableFuture<String> future = CompletableFuture.supplyAsync(() ->
-                chatClient.prompt()
-                        .system(ocrBlockSystem)
-                        .user(u -> u.text("请识别这张简历图片中的文字，并按系统提示返回结构化 JSON")
-                                .media(MimeTypeUtils.IMAGE_JPEG, new ByteArrayResource(imageBytes)))
-                        .call()
-                        .content(), aiExecutor);
+        return executeWithRetry(
+                "ocr",
+                ocrBlockSystem,
+                "<image bytes, length=" + imageBytes.length + ">",
+                () -> CompletableFuture.supplyAsync(() ->
+                                chatClient.prompt()
+                                        .system(ocrBlockSystem)
+                                        .user(u -> u.text("请识别这张简历图片中的文字，并按系统提示返回结构化 JSON")
+                                                .media(MimeTypeUtils.IMAGE_JPEG, new ByteArrayResource(imageBytes)))
+                                        .call()
+                                        .content(),
+                        aiExecutor),
+                ocrTimeoutSeconds
+        );
+    }
 
-        try {
-            return future.get(120,TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("OCR调用被中断", e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException("OCR调用失败: " + e.getCause().getMessage(), e.getCause());
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            throw new RuntimeException("OCR识别超时，请更换更清晰的图片重试", e);
+    // ============================================================
+    // 通用重试执行器
+    //
+    // 对 ExecutionException / TimeoutException 做最多 maxAttempts 次尝试；
+    // 每次重试之间 Thread.sleep(retryBaseBackoffMs * attempt)。
+    // 全部失败再抛业务 RuntimeException。
+    // ============================================================
+    private String executeWithRetry(String scene,
+                                    String systemPrompt,
+                                    String userPrompt,
+                                    Supplier<CompletableFuture<String>> task,
+                                    long timeoutSeconds){
+        RuntimeException lastFailure = null;
+
+        for (int attempt = 0; attempt <= maxAttempts; attempt++) {
+            try {
+                return task.get().get(timeoutSeconds, TimeUnit.SECONDS);
+
+            } catch (InterruptedException e) {
+                // 中断：立刻停止，不重试（保留中断标志）
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("AI调用被中断", e);
+
+            } catch (ExecutionException e) {
+                lastFailure = new RuntimeException("AI调用失败: " + rootMessage(e), e.getCause());
+                log.warn("[{}] 第 {}/{} 次调用失败（ExecutionException）：{}",
+                        scene, attempt, maxAttempts, rootMessage(e));
+
+            } catch (TimeoutException e) {
+                lastFailure = new RuntimeException("AI服务响应超时，请稍后重试", e);
+                log.warn("[{}] 第 {}/{} 次调用超时（{} 秒）",
+                        scene, attempt, maxAttempts, timeoutSeconds);
+            }
+
+            if (attempt == maxAttempts) {
+                break;
+            }
+
+
+            long sleepMs = 300L * attempt;
+            log.info("[{}] {} ms 后进行第 {} 次重试", scene, sleepMs, attempt + 1);
+            try {
+                Thread.sleep(sleepMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("重试等待被中断", ie);
+            }
         }
+
+        log.error("[{}] 已重试 {} 次，全部失败，systemPrompt={}, userPrompt={}",
+                scene, maxAttempts, truncateLog(systemPrompt), truncateLog(userPrompt));
+        throw lastFailure != null
+                ? lastFailure
+                : new RuntimeException("AI调用失败，未知原因");
+    }
+
+
+    /** 取异常的根因 message，便于日志 */
+    private String rootMessage(Throwable e) {
+        Throwable cur = e;
+        while (cur.getCause() != null && cur.getCause() != cur) {
+            cur = cur.getCause();
+        }
+        return cur.getMessage() != null ? cur.getMessage() : cur.getClass().getSimpleName();
     }
 
     /**
