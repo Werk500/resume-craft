@@ -107,9 +107,11 @@ public class ImageParser implements ConfidenceParser {
         cleanedResponse = cleanedResponse.trim();
         
         //解析JSON
-        Map jsonMap;
+        Map<String, Object> jsonMap;
         try {
-            jsonMap = objectMapper.readValue(cleanedResponse, Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(cleanedResponse, Map.class);
+            jsonMap = parsed;
         } catch (Exception e) {
             throw new IOException("OCR 响应不是合法 JSON", e);
         }
