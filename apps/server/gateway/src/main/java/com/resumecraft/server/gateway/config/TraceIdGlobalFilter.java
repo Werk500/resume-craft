@@ -25,7 +25,11 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
 
         String finalTraceId = traceId;
         ServerHttpRequest mutated = exchange.getRequest().mutate().header(HEADER, finalTraceId).build();
-        exchange.getResponse().getHeaders().set(HEADER, finalTraceId);
+        // 在响应提交前覆盖（下游服务也会回写该头，直接 set 会叠加成两个值）
+        exchange.getResponse().beforeCommit(() -> {
+            exchange.getResponse().getHeaders().set(HEADER, finalTraceId);
+            return Mono.empty();
+        });
         return chain.filter(exchange.mutate().request(mutated).build());
     }
 
