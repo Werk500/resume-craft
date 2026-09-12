@@ -5,6 +5,10 @@
 server:
   port: 8080
 
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+
 spring:
   application:
     name: resume-craft-gateway
@@ -28,7 +32,7 @@ spring:
                 redis-rate-limiter.replenishRate: 20      # 每秒补充 20 个令牌
                 redis-rate-limiter.burstCapacity: 40      # 突发容量
                 redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@ipKeyResolver}"
+                key-resolver: "#{@userIpKeyResolver}"
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -105,3 +109,4 @@ management:
   endpoint:
     health:
       show-details: always
+

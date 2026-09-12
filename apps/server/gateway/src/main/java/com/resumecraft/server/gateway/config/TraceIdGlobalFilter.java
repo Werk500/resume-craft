@@ -25,6 +25,7 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
 
         String finalTraceId = traceId;
         ServerHttpRequest mutated = exchange.getRequest().mutate().header(HEADER, finalTraceId).build();
+        exchange.getResponse().getHeaders().set(HEADER, finalTraceId);
         return chain.filter(exchange.mutate().request(mutated).build());
     }
 

@@ -8,6 +8,8 @@ import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/internal")
+@Slf4j
 public class InternalResumeController {
 
     @Resource
@@ -24,6 +27,9 @@ public class InternalResumeController {
 
     @GetMapping("/resume/{id}")
     public ResumeBriefDTO getResume(@PathVariable Long id){
+
+        log.info("internal getResume id={}, traceId={}", id, MDC.get("traceId"));
+
         Resume resume = resumeMapper.selectById(id);
         if (resume == null) {
             throw new IllegalArgumentException("简历不存在: " + id);
@@ -32,16 +38,6 @@ public class InternalResumeController {
         if ("REVIEW".equals(resume.getOcrStatus())) {
             throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
         }
-
-//        ResumeBriefDTO resumeBriefDTO = new ResumeBriefDTO();
-//        resumeBriefDTO.setId(resume.getId());
-//        resumeBriefDTO.setUserId(resume.getUserId());
-//        resumeBriefDTO.setFileName(resume.getFileName());
-//        resumeBriefDTO.setFileType(resume.getFileType());
-//        resumeBriefDTO.setParsedName(resume.getParsedName());
-//        resumeBriefDTO.setParsedEmail(resume.getParsedEmail());
-//        resumeBriefDTO.setParsedPhone(resume.getParsedPhone());
-//        resumeBriefDTO.setRawText(resume.getRawText());
 
         return ResumeBriefDTO.builder()
                 .id(resume.getId())
