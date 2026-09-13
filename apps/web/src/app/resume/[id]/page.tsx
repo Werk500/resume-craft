@@ -70,14 +70,14 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
   return (
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
-        <Link href="/resumes" className="text-sm text-blue-600 hover:underline">
+        <Link href="/resumes" className="text-sm text-zinc-900 hover:underline">
           ← 返回简历列表
         </Link>
         <Link
           href={`/resume/${resumeId}/versions`}
-          className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+          className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-200"
         >
-          📚 版本历史
+          版本历史
         </Link>
       </div>
 
@@ -91,7 +91,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div>
             <p className="text-sm font-medium text-amber-700">
-              ⚠️ 图片识别置信度较低，已暂停 AI 诊断与优化
+              图片识别置信度较低，已暂停 AI 诊断与优化
             </p>
             <p className="mt-0.5 text-xs text-amber-600">
               模糊扫描件不会参与自动评分，请先人工核对识别内容。
@@ -110,27 +110,27 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
         <div className="grid gap-4 lg:grid-cols-2">
           {/* 左列：原始简历 */}
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h1 className="text-lg font-bold text-slate-900">{resume.fileName}</h1>
-              <p className="mt-1 text-xs text-slate-400">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
+              <h1 className="text-lg font-bold text-zinc-900">{resume.fileName}</h1>
+              <p className="mt-1 text-xs text-zinc-400">
                 {resume.fileType.toUpperCase()} · 上传于 {resume.createTime?.slice(0, 10)}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="text-xs text-slate-400">姓名</span>
-                  <p className="font-medium text-slate-700">{resume.parsedName || "未识别"}</p>
+                  <span className="text-xs text-zinc-400">姓名</span>
+                  <p className="font-medium text-zinc-700">{resume.parsedName || "未识别"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">邮箱</span>
-                  <p className="font-medium text-slate-700">{resume.parsedEmail || "未识别"}</p>
+                  <span className="text-xs text-zinc-400">邮箱</span>
+                  <p className="font-medium text-zinc-700">{resume.parsedEmail || "未识别"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">电话</span>
-                  <p className="font-medium text-slate-700">{resume.parsedPhone || "未识别"}</p>
+                  <span className="text-xs text-zinc-400">电话</span>
+                  <p className="font-medium text-zinc-700">{resume.parsedPhone || "未识别"}</p>
                 </div>
               </div>
-              <p className="mt-4 text-xs text-slate-400">
-                💡 鼠标选中原文中的一段经历，可进行 AI 逐句精修
+              <p className="mt-4 text-xs text-zinc-400">
+                鼠标选中原文中的一段经历，可进行 AI 逐句精修
               </p>
               <SegmentRewriter resumeId={resumeId} initialText={resume.rawText} />
             </div>
@@ -139,24 +139,24 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
           {/* 右列：AI 诊断 + 优化 */}
           <div className="space-y-4">
             {/* 诊断卡片 */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-800">🤖 AI 简历诊断</h2>
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
+              <h2 className="font-semibold text-zinc-800">AI 简历诊断</h2>
               {!diagnosis && !diagnosing && (
                 <button
                   onClick={handleDiagnose}
                   disabled={resume?.ocrStatus === "REVIEW"}
-                  className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="mt-4 w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
                   开始诊断
                 </button>
               )}
-              {diagnosing && <p className="mt-4 animate-pulse text-sm text-slate-500">AI 分析中，约 10~30 秒…</p>}
+              {diagnosing && <p className="mt-4 animate-pulse text-sm text-zinc-500">AI 分析中，约 10~30 秒…</p>}
               {diagnosis && (
                 <div className="mt-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-4xl font-bold text-slate-900">{diagnosis.totalScore}</span>
+                    <span className="text-4xl font-bold text-zinc-900">{diagnosis.totalScore}</span>
                     <div className="text-sm">
-                      <span className="text-slate-400">综合评分</span>
+                      <span className="text-zinc-400">综合评分</span>
                       <ScoreBar value={diagnosis.completeness.score} label={diagnosis.completeness.label} color={diagnosis.completeness.color} />
                       <ScoreBar value={diagnosis.expression.score} label={diagnosis.expression.label} color={diagnosis.expression.color} />
                       <ScoreBar value={diagnosis.matchScore.score} label={diagnosis.matchScore.label} color={diagnosis.matchScore.color} />
@@ -164,7 +164,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                   </div>
                   <ul className="mt-4 space-y-2">
                     {diagnosis.suggestions.map((s, i) => (
-                      <li key={i} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      <li key={i} className="rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
                         {s}
                       </li>
                     ))}
@@ -172,7 +172,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                   <button
                     onClick={handleDiagnose}
                     disabled={resume?.ocrStatus === "REVIEW"}
-                    className="mt-3 text-xs text-blue-600 hover:underline"
+                    className="mt-3 text-xs text-zinc-900 hover:underline"
                   >
                     重新诊断
                   </button>
@@ -181,19 +181,19 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
             </div>
 
             {/* 优化卡片 */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-800">✨ AI 一键优化</h2>
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
+              <h2 className="font-semibold text-zinc-800">AI 一键优化</h2>
               <div className="mt-4 flex gap-2">
                 <input
                   value={targetJob}
                   onChange={(e) => setTargetJob(e.target.value)}
                   placeholder="目标岗位（可空 = 通用优化）"
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+                  className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
                 />
                 <button
                   onClick={handleOptimize}
                   disabled={optimizing || resume?.ocrStatus === "REVIEW"}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
                   {optimizing ? "优化中…" : "优化"}
                 </button>
@@ -202,26 +202,26 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
               {optimized && (
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-zinc-400">
                       {optimized.versionName}
                       {optimized.targetJob ? ` · 目标岗位：${optimized.targetJob}` : ""}
                     </span>
                     <div className="flex gap-2 text-xs">
                       <button
                         onClick={() => navigator.clipboard.writeText(optimized.optimizedContent)}
-                        className="rounded border border-slate-200 px-2 py-1 text-slate-500 hover:bg-slate-50"
+                        className="rounded border border-zinc-200 px-2 py-1 text-zinc-500 hover:bg-zinc-50"
                       >
                         复制
                       </button>
                       <button
                         onClick={downloadMarkdown}
-                        className="rounded border border-slate-200 px-2 py-1 text-slate-500 hover:bg-slate-50"
+                        className="rounded border border-zinc-200 px-2 py-1 text-zinc-500 hover:bg-zinc-50"
                       >
                         下载
                       </button>
                     </div>
                   </div>
-                  <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-xs leading-relaxed text-slate-700">
+                  <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-100 p-4 text-xs leading-relaxed text-zinc-700">
                     {optimized.optimizedContent}
                   </pre>
                 </div>
@@ -239,11 +239,11 @@ function ScoreBar({ value, label, color }: { value: number; label: string; color
     color === "green" ? "bg-green-500" : color === "yellow" ? "bg-yellow-400" : "bg-red-400";
   return (
     <div className="mt-1 flex items-center gap-2">
-      <span className="w-20 shrink-0 text-xs text-slate-500">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+      <span className="w-20 shrink-0 text-xs text-zinc-500">{label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
         <div className={`h-full ${colorClass}`} style={{ width: `${Math.min(value, 100)}%` }} />
       </div>
-      <span className="w-8 text-right text-xs text-slate-500">{Math.round(value)}</span>
+      <span className="w-8 text-right text-xs text-zinc-500">{Math.round(value)}</span>
     </div>
   );
 }

@@ -5,9 +5,9 @@ import { api } from "@/lib/api";
 import type { ResumeVersion } from "@/lib/types";
 
 const FOCUS_OPTIONS = [
-  { key: "DATA", label: "📊 侧重数据成果", desc: "突出量化数据与可衡量成果" },
-  { key: "METHOD", label: "🔧 侧重过程方法", desc: "突出技术方案与实施过程" },
-  { key: "IMPACT", label: "🚀 侧重项目影响力", desc: "突出业务价值与影响" },
+  { key: "DATA", label: "侧重数据成果", desc: "突出量化数据与可衡量成果" },
+  { key: "METHOD", label: "侧重过程方法", desc: "突出技术方案与实施过程" },
+  { key: "IMPACT", label: "侧重项目影响力", desc: "突出业务价值与影响" },
 ];
 
 /**
@@ -73,7 +73,7 @@ export default function SegmentRewriter({
       setText(newText);
       setSelected("");
       setResult(null);
-      setMsg({ type: "ok", text: `✅ 已保存为新版本（v${ver.id}），原文已替换显示` });
+      setMsg({ type: "ok", text: `已保存为新版本（v${ver.id}），原文已替换显示` });
     } catch (e) {
       setMsg({ type: "err", text: e instanceof Error ? e.message : "保存失败" });
     } finally {
@@ -87,19 +87,19 @@ export default function SegmentRewriter({
       <pre
         ref={preRef}
         onMouseUp={captureSelection}
-        className="mt-2 max-h-96 cursor-text select-text overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600"
+        className="mt-2 max-h-96 cursor-text select-text overflow-y-auto whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 text-xs leading-relaxed text-zinc-600"
       >
         {text}
       </pre>
 
       {/* 选中提示 + 精修入口 */}
       {selected && !result && (
-        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+        <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-100 p-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-blue-700">
+            <p className="text-xs text-zinc-900">
               已选中 {selected.length} 字：<span className="line-clamp-1">{selected}</span>
             </p>
-            <button onClick={() => setSelected("")} className="shrink-0 text-xs text-blue-400 hover:text-blue-600">
+            <button onClick={() => setSelected("")} className="shrink-0 text-xs text-zinc-400 hover:text-zinc-900">
               清除
             </button>
           </div>
@@ -109,7 +109,7 @@ export default function SegmentRewriter({
                 key={f.key}
                 onClick={() => handleRewrite(f.key)}
                 disabled={rewriting}
-                className="rounded-lg bg-white px-3 py-1.5 text-xs text-slate-600 shadow-sm hover:bg-blue-100 disabled:opacity-50"
+                className="rounded-lg bg-white px-3 py-1.5 text-xs text-zinc-600 shadow-card hover:bg-zinc-200 disabled:opacity-50"
                 title={f.desc}
               >
                 {f.label}
@@ -123,12 +123,12 @@ export default function SegmentRewriter({
       {result && (
         <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-green-700">✨ AI 改写结果</p>
+            <p className="text-xs font-medium text-green-700">AI 改写结果</p>
             <button onClick={() => setResult(null)} className="text-xs text-green-500 hover:text-green-700">
               ✕ 放弃
             </button>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{result}</p>
+          <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-zinc-700">{result}</p>
           <div className="mt-3 flex gap-2">
             <button
               onClick={handleAdopt}
@@ -160,7 +160,7 @@ export default function SegmentRewriter({
       )}
 
       {rewriting && !result && (
-        <p className="mt-2 animate-pulse text-xs text-slate-400">AI 改写中，约 5~15 秒…</p>
+        <p className="mt-2 animate-pulse text-xs text-zinc-400">AI 改写中，约 5~15 秒…</p>
       )}
     </div>
   );

@@ -87,10 +87,10 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
   return (
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
-        <Link href={`/resume/${resumeId}`} className="text-sm text-blue-600 hover:underline">
+        <Link href={`/resume/${resumeId}`} className="text-sm text-zinc-900 hover:underline">
           ← 返回简历详情
         </Link>
-        <h1 className="text-xl font-bold text-slate-900">📚 版本历史</h1>
+        <h1 className="text-xl font-bold text-zinc-900">版本历史</h1>
         <span className="w-20" />
       </div>
 
@@ -100,27 +100,27 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {loading && <p className="py-10 text-center text-slate-400">加载中…</p>}
+      {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
 
       {!loading && versions.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-16 text-center">
-          <p className="text-slate-500">暂无版本，先在简历详情页做 AI 优化或逐句精修</p>
+        <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-16 text-center">
+          <p className="text-zinc-500">暂无版本，先在简历详情页做 AI 优化或逐句精修</p>
         </div>
       )}
 
       {/* 对比操作条 */}
       {selected.length === 2 && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl bg-blue-50 p-3">
-          <p className="text-sm text-blue-700">已选 2 个版本</p>
+        <div className="mb-4 flex items-center gap-3 rounded-xl bg-zinc-100 p-3">
+          <p className="text-sm text-zinc-900">已选 2 个版本</p>
           <button
             onClick={compare}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
           >
             对比差异
           </button>
           <button
             onClick={() => setSelected([])}
-            className="text-sm text-blue-500 hover:underline"
+            className="text-sm text-zinc-600 hover:underline"
           >
             清空
           </button>
@@ -133,7 +133,7 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
           <div
             key={0}
             className={`flex items-center justify-between rounded-xl border p-4 transition ${
-              selected.includes(0) ? "border-blue-400 bg-blue-50" : "border-amber-200 bg-amber-50/50"
+              selected.includes(0) ? "border-brand-400 bg-zinc-100" : "border-amber-200 bg-amber-50/50"
             }`}
           >
             <label className="flex cursor-pointer items-center gap-3">
@@ -144,8 +144,8 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
                 className="h-4 w-4"
               />
               <div>
-                <p className="font-medium text-slate-800">📄 原始简历（上传解析）</p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="font-medium text-zinc-800">原始简历（上传解析）</p>
+                <p className="mt-0.5 text-xs text-zinc-400">
                   {resume.fileName} · {resume.rawText?.length ?? 0} 字
                 </p>
               </div>
@@ -157,7 +157,7 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
           <div
             key={v.id}
             className={`flex items-center justify-between rounded-xl border p-4 transition ${
-              selected.includes(v.id) ? "border-blue-400 bg-blue-50" : "border-slate-200 bg-white"
+              selected.includes(v.id) ? "border-brand-400 bg-zinc-100" : "border-zinc-200 bg-white"
             }`}
           >
             <label className="flex cursor-pointer items-center gap-3">
@@ -168,15 +168,15 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
                 className="h-4 w-4"
               />
               <div>
-                <p className="font-medium text-slate-800">
+                <p className="font-medium text-zinc-800">
                   {v.versionName}
                   {v.targetJob && (
-                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                      🎯 {v.targetJob}
+                    <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500">
+                      {v.targetJob}
                     </span>
                   )}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-zinc-400">
                   v{v.id} · {v.createTime?.slice(0, 19).replace("T", " ")} ·{" "}
                   {v.optimizedContent?.length ?? 0} 字
                   {v.matchScore != null && ` · 匹配度 ${Math.round(v.matchScore)}`}
@@ -185,7 +185,7 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
             </label>
             <button
               onClick={() => handleDelete(v.id)}
-              className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-500"
+              className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-500"
             >
               删除
             </button>
@@ -197,10 +197,10 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
       {diffPair && (
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700">
-              对比：{diffPair[0].versionName}（旧） ↔ {diffPair[1].versionName}（新）
+            <h2 className="text-sm font-semibold text-zinc-700">
+              对比：{diffPair[0].versionName}（旧） {diffPair[1].versionName}（新）
             </h2>
-            <button onClick={() => setDiffPair(null)} className="text-xs text-slate-400 hover:text-slate-600">
+            <button onClick={() => setDiffPair(null)} className="text-xs text-zinc-400 hover:text-zinc-600">
               关闭
             </button>
           </div>

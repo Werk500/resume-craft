@@ -27,17 +27,17 @@ export default function ImprovementReport({
   ];
 
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
+    <div className="rounded-2xl border border-emerald-200 bg-white p-6 shadow-card">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">✨ 定向优化 · 提升报告</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <h2 className="text-lg font-bold text-zinc-900">定向优化 · 提升报告</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">
             同一 JD 下，优化前简历 vs 优化版本（已保存为版本 #{targeted.versionId}）
           </p>
         </div>
         <Link
           href={`/resume/${resumeId}/versions`}
-          className="shrink-0 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200"
+          className="shrink-0 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200"
         >
           查看 Diff
         </Link>
@@ -46,7 +46,7 @@ export default function ImprovementReport({
       {/* 总分对比 */}
       <div className="mt-5 flex flex-wrap items-end gap-4">
         <ScoreBlock label="优化前" value={beforeScore} tone="slate" />
-        <div className="pb-2 text-2xl text-slate-300">→</div>
+        <div className="pb-2 text-2xl text-zinc-300">→</div>
         <ScoreBlock label="优化后" value={afterScore} tone="blue" />
         <div
           className={`mb-2 rounded-full px-3 py-1 text-sm font-bold ${
@@ -60,12 +60,12 @@ export default function ImprovementReport({
       {/* 三维对比 */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         {dimensions.map((d) => (
-          <div key={d.label} className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-400">{d.label}</p>
+          <div key={d.label} className="rounded-xl bg-zinc-50 p-3">
+            <p className="text-xs text-zinc-400">{d.label}</p>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-xl font-bold text-slate-700">{round(d.before)}</span>
-              <span className="text-xs text-slate-400">→</span>
-              <span className="text-xl font-bold text-blue-600">{round(d.after)}</span>
+              <span className="text-xl font-bold text-zinc-700">{round(d.before)}</span>
+              <span className="text-xs text-zinc-400">→</span>
+              <span className="text-xl font-bold text-zinc-900">{round(d.after)}</span>
               <span className={`text-xs font-medium ${(round(d.after) - round(d.before)) >= 0 ? "text-emerald-500" : "text-amber-500"}`}>
                 {(round(d.after) - round(d.before)) >= 0 ? "+" : ""}
                 {round(d.after) - round(d.before)}
@@ -94,12 +94,12 @@ export default function ImprovementReport({
         )}
 
         {(targeted.changes?.length ?? 0) > 0 && (
-          <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-            <p className="text-xs font-medium text-blue-700">本次改动（提升原因）</p>
+          <section className="rounded-xl border border-zinc-200 bg-zinc-100 p-3">
+            <p className="text-xs font-medium text-zinc-900">本次改动（提升原因）</p>
             <ul className="mt-2 space-y-1.5">
               {targeted.changes!.map((c, i) => (
-                <li key={i} className="flex gap-2 text-sm text-slate-600">
-                  <span className="text-blue-400">•</span>
+                <li key={i} className="flex gap-2 text-sm text-zinc-600">
+                  <span className="text-zinc-400">•</span>
                   <span>{c}</span>
                 </li>
               ))}
@@ -112,7 +112,7 @@ export default function ImprovementReport({
             <p className="text-xs font-medium text-amber-700">仍需补强的缺口（建议下一步）</p>
             <ul className="mt-2 space-y-1.5">
               {targeted.gaps!.map((g, i) => (
-                <li key={i} className="flex gap-2 text-sm text-slate-600">
+                <li key={i} className="flex gap-2 text-sm text-zinc-600">
                   <span className="text-amber-500">△</span>
                   <span>{g}</span>
                 </li>
@@ -123,9 +123,9 @@ export default function ImprovementReport({
       </div>
 
       {after.matchExplanation && (
-        <div className="mt-4 rounded-xl bg-slate-50 p-4">
-          <p className="mb-1 text-xs font-medium text-slate-400">优化后归因分析</p>
-          <p className="text-sm leading-relaxed text-slate-600">{after.matchExplanation}</p>
+        <div className="mt-4 rounded-xl bg-zinc-50 p-4">
+          <p className="mb-1 text-xs font-medium text-zinc-400">优化后归因分析</p>
+          <p className="text-sm leading-relaxed text-zinc-600">{after.matchExplanation}</p>
         </div>
       )}
     </div>
@@ -141,10 +141,10 @@ function ScoreBlock({
   value: number;
   tone: "slate" | "blue";
 }) {
-  const color = tone === "blue" ? "text-blue-600" : "text-slate-700";
+  const color = tone === "blue" ? "text-zinc-900" : "text-zinc-700";
   return (
     <div className="text-center">
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-xs text-zinc-400">{label}</p>
       <p className={`text-5xl font-bold ${color}`}>{value}</p>
     </div>
   );

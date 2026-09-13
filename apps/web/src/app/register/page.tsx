@@ -39,35 +39,35 @@ export default function RegisterPage() {
   return (
     <main className="flex min-h-[80vh] items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-card">
-          <h1 className="text-2xl font-bold text-slate-900">注册</h1>
-          <p className="mt-1 text-sm text-slate-500">创建账号，开启 AI 简历之旅</p>
+        <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-card">
+          <h1 className="text-2xl font-bold text-zinc-900">注册</h1>
+          <p className="mt-1 text-sm text-zinc-500">创建账号，开启 AI 简历之旅</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">用户名</label>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">用户名</label>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 minLength={3}
                 maxLength={20}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="3-20 个字符"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">昵称（可选）</label>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">昵称（可选）</label>
               <input
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={50}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="默认使用用户名"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">密码</label>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">密码</label>
               <input
                 type="password"
                 value={password}
@@ -75,7 +75,7 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 maxLength={20}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="6-20 个字符"
               />
             </div>
@@ -95,7 +95,7 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-sm text-slate-500">
+          <p className="mt-4 text-center text-sm text-zinc-500">
             已有账号？{" "}
             <Link href="/login" className="text-brand-700 hover:underline">
               去登录

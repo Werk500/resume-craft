@@ -5,8 +5,8 @@ import { api } from "@/lib/api";
 import { APP_STATUS, type ApplicationRecord, type AppStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-slate-100 text-slate-600",
-  interviewing: "bg-blue-100 text-blue-700",
+  pending: "bg-zinc-100 text-zinc-600",
+  interviewing: "bg-zinc-200 text-zinc-900",
   rejected: "bg-red-100 text-red-600",
   no_response: "bg-amber-100 text-amber-700",
   accepted: "bg-green-100 text-green-700",
@@ -80,12 +80,12 @@ export default function ApplicationsPage() {
     <main className="mx-auto max-w-4xl p-6">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">投递管理</h1>
-          <p className="mt-1 text-sm text-slate-500">跟踪每一次投递与面试进度</p>
+          <h1 className="text-2xl font-bold text-zinc-900">投递管理</h1>
+          <p className="mt-1 text-sm text-zinc-500">跟踪每一次投递与面试进度</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
         >
           {showForm ? "取消" : "+ 新增投递"}
         </button>
@@ -98,39 +98,39 @@ export default function ApplicationsPage() {
       )}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 font-semibold text-slate-800">新增投递记录</h2>
+        <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
+          <h2 className="mb-4 font-semibold text-zinc-800">新增投递记录</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               type="date"
               value={form.appliedAt}
               onChange={(e) => setForm({ ...form, appliedAt: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <input
               value={form.channel}
               onChange={(e) => setForm({ ...form, channel: e.target.value })}
               placeholder="投递渠道（如 BOSS直聘）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <input
               type="number"
               value={form.resumeVersionId}
               onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
               placeholder="优化版本ID（可空）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <input
               type="number"
               value={form.jobId}
               onChange={(e) => setForm({ ...form, jobId: e.target.value })}
               placeholder="岗位ID（可空）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as AppStatus })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             >
               {Object.entries(APP_STATUS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -140,35 +140,35 @@ export default function ApplicationsPage() {
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="备注"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
           </div>
-          <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-zinc-900 px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             {saving ? "保存中…" : "保存"}
           </button>
         </form>
       )}
 
-      {loading && <p className="py-10 text-center text-slate-400">加载中…</p>}
+      {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
 
       {!loading && apps.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-16 text-center">
-          <p className="text-slate-500">还没有投递记录</p>
+        <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-16 text-center">
+          <p className="text-zinc-500">还没有投递记录</p>
         </div>
       )}
 
       <div className="space-y-3">
         {apps.map((a) => (
-          <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div key={a.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-card">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-slate-800">
+                <p className="font-medium text-zinc-800">
                   #{a.id}
-                  {a.channel && <span className="ml-2 text-sm text-slate-500">{a.channel}</span>}
-                  {a.jobId && <span className="ml-2 text-xs text-slate-400">岗位 #{a.jobId}</span>}
-                  {a.resumeVersionId && <span className="ml-2 text-xs text-slate-400">版本 #{a.resumeVersionId}</span>}
+                  {a.channel && <span className="ml-2 text-sm text-zinc-500">{a.channel}</span>}
+                  {a.jobId && <span className="ml-2 text-xs text-zinc-400">岗位 #{a.jobId}</span>}
+                  {a.resumeVersionId && <span className="ml-2 text-xs text-zinc-400">版本 #{a.resumeVersionId}</span>}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-zinc-400">
                   {a.appliedAt || "未填日期"} {a.notes ? `· ${a.notes}` : ""}
                 </p>
               </div>
@@ -184,7 +184,7 @@ export default function ApplicationsPage() {
                 </select>
                 <button
                   onClick={() => handleDelete(a.id)}
-                  className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-500"
+                  className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-500"
                 >
                   删除
                 </button>

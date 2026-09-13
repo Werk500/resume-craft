@@ -105,8 +105,8 @@ export default function MatchPage() {
   return (
     <main className="mx-auto max-w-3xl p-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">AI 人岗匹配</h1>
-        <p className="mt-1 text-sm text-slate-500">选择简历与目标岗位，AI 分析匹配度</p>
+        <h1 className="text-2xl font-bold text-zinc-900">AI 人岗匹配</h1>
+        <p className="mt-1 text-sm text-zinc-500">选择简历与目标岗位，AI 分析匹配度</p>
       </header>
 
       {error && (
@@ -116,14 +116,14 @@ export default function MatchPage() {
       )}
 
       {/* 选择区 */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">选择简历</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-700">选择简历</label>
             <select
               value={resumeId}
               onChange={(e) => setResumeId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             >
               {resumes.length === 0 && <option value="">暂无简历，请先上传</option>}
               {resumes.map((r) => (
@@ -134,11 +134,11 @@ export default function MatchPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">选择岗位</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-700">选择岗位</label>
             <select
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             >
               {jobs.length === 0 && <option value="">暂无岗位，请先录入</option>}
               {jobs.map((j) => (
@@ -153,7 +153,7 @@ export default function MatchPage() {
           <button
             onClick={handleMatch}
             disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
-            className="rounded-lg bg-slate-100 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+            className="rounded-lg bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"
           >
             {matching ? "AI 匹配分析中，约 20~40 秒…" : "仅看匹配度"}
           </button>
@@ -162,20 +162,20 @@ export default function MatchPage() {
             disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
             className="rounded-lg bg-emerald-600 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {optimizing ? "定向优化 + 重新匹配中…" : "🎯 定向优化并对比提升"}
+            {optimizing ? "定向优化 + 重新匹配中…" : "定向优化并对比提升"}
           </button>
         </div>
       </div>
 
       {/* 结果区 */}
       {result && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <p className="text-5xl font-bold text-blue-600">
+              <p className="text-5xl font-bold text-zinc-900">
                 {Math.round(result.overallScore ?? 0)}
               </p>
-              <p className="mt-1 text-xs text-slate-400">综合匹配度</p>
+              <p className="mt-1 text-xs text-zinc-400">综合匹配度</p>
             </div>
             <div className="flex-1 space-y-2">
               <MatchBar label="关键词覆盖" value={result.keywordCoverage} />
@@ -184,9 +184,9 @@ export default function MatchPage() {
             </div>
           </div>
           {result.matchExplanation && (
-            <div className="mt-5 rounded-xl bg-slate-50 p-4">
-              <p className="mb-1 text-xs font-medium text-slate-400">AI 归因分析</p>
-              <p className="text-sm leading-relaxed text-slate-600">{result.matchExplanation}</p>
+            <div className="mt-5 rounded-xl bg-zinc-50 p-4">
+              <p className="mb-1 text-xs font-medium text-zinc-400">AI 归因分析</p>
+              <p className="text-sm leading-relaxed text-zinc-600">{result.matchExplanation}</p>
             </div>
           )}
         </div>
@@ -212,11 +212,11 @@ function MatchBar({ label, value }: { label: string; value: number | null }) {
   const color = v >= 70 ? "bg-green-500" : v >= 40 ? "bg-yellow-400" : "bg-red-400";
   return (
     <div className="flex items-center gap-2">
-      <span className="w-20 shrink-0 text-xs text-slate-500">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+      <span className="w-20 shrink-0 text-xs text-zinc-500">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100">
         <div className={`h-full ${color}`} style={{ width: `${v}%` }} />
       </div>
-      <span className="w-8 text-right text-xs text-slate-500">{Math.round(v)}</span>
+      <span className="w-8 text-right text-xs text-zinc-500">{Math.round(v)}</span>
     </div>
   );
 }

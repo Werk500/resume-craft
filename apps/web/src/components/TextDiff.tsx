@@ -30,20 +30,20 @@ export default function TextDiff({ oldText, newText }: TextDiffProps) {
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-400">
+      <p className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-center text-sm text-zinc-400">
         两个版本内容均为空，无可对比内容
       </p>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+      <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
         <span>共 {rows.length} 行</span>
         <span className="flex gap-3">
           <span className="text-green-600">+ {added}</span>
           <span className="text-red-500">- {removed}</span>
-          <span className="text-slate-400">= {unchanged}</span>
+          <span className="text-zinc-400">= {unchanged}</span>
         </span>
       </div>
 
@@ -60,7 +60,7 @@ export default function TextDiff({ oldText, newText }: TextDiffProps) {
           return (
             <div
               key={i}
-              className={`grid grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] border-b border-slate-100 last:border-b-0 ${rowBg}`}
+              className={`grid grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] border-b border-zinc-100 last:border-b-0 ${rowBg}`}
             >
               <LineCell
                 text={row.oldLine?.text ?? ""}
@@ -73,7 +73,7 @@ export default function TextDiff({ oldText, newText }: TextDiffProps) {
                 ) : isAdded ? (
                   <span className="font-bold text-green-500">+</span>
                 ) : (
-                  <span className="text-slate-300">·</span>
+                  <span className="text-zinc-300">·</span>
                 )}
               </div>
               <LineCell
@@ -105,7 +105,7 @@ function LineCell({
       ? "text-red-700"
       : state === "added"
         ? "text-green-700"
-        : "text-slate-600";
+        : "text-zinc-600";
 
   return (
     <div

@@ -10,7 +10,7 @@ import type { Resume } from "@/lib/types";
 const GREETING: ChatMessage = {
   role: "assistant",
   content:
-    "你好，我是你的简历助手 🤖\n\n我们先从基本信息开始：你的姓名、电话 / 邮箱、学校、专业和毕业年份是？你也可以一次性把信息都发给我，例如：“我叫张三，北京邮电大学软件工程本科，2027 届……”\n\n我会一个问题一个问题收集，信息足够时自动为你生成完整简历。",
+    "你好，我是你的简历助手 \n\n我们先从基本信息开始：你的姓名、电话 / 邮箱、学校、专业和毕业年份是？你也可以一次性把信息都发给我，例如：“我叫张三，北京邮电大学软件工程本科，2027 届……”\n\n我会一个问题一个问题收集，信息足够时自动为你生成完整简历。",
 };
 
 const CHECKLIST = [
@@ -80,7 +80,7 @@ export default function CreateResumePage() {
       if (assistantText) {
         setMessages([
           ...history,
-          { role: "assistant", content: `${assistantText}\n\n⚠️ ${message}` },
+          { role: "assistant", content: `${assistantText}\n\n${message}` },
         ]);
       }
     } finally {
@@ -121,14 +121,14 @@ export default function CreateResumePage() {
     <main className="mx-auto max-w-6xl p-6">
       <header className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">🤖 AI 对话创建简历</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-zinc-900">AI 对话创建简历</h1>
+          <p className="mt-1 text-sm text-zinc-500">
             用对话回答几个问题，AI 自动生成可继续诊断 / 优化的 Markdown 简历
           </p>
         </div>
         <Link
           href="/resumes"
-          className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200"
+          className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-200"
         >
           返回简历列表
         </Link>
@@ -143,29 +143,29 @@ export default function CreateResumePage() {
       <div className="grid gap-5 lg:grid-cols-[290px_1fr]">
         {/* 左侧引导 */}
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-semibold text-slate-800">🎯 目标岗位（可选）</p>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
+            <p className="text-sm font-semibold text-zinc-800">目标岗位（可选）</p>
             <input
               value={targetJob}
               onChange={(e) => setTargetJob(e.target.value)}
               placeholder="如：Java 后端开发工程师"
               disabled={streaming}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
+              className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
-            <p className="mt-1.5 text-xs text-slate-400">填写后 AI 会针对岗位方向优化简历</p>
+            <p className="mt-1.5 text-xs text-zinc-400">填写后 AI 会针对岗位方向优化简历</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-semibold text-slate-800">📋 建议覆盖的信息</p>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
+            <p className="text-sm font-semibold text-zinc-800">建议覆盖的信息</p>
             <ul className="mt-3 space-y-2">
               {CHECKLIST.map((item) => (
-                <li key={item} className="flex gap-2 text-xs leading-relaxed text-slate-500">
+                <li key={item} className="flex gap-2 text-xs leading-relaxed text-zinc-500">
                   <span className="mt-0.5 text-emerald-500">✓</span>
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-400">
+            <p className="mt-3 rounded-lg bg-zinc-50 p-2.5 text-xs leading-relaxed text-zinc-400">
               不用一次答全，AI 会一步一步追问；觉得够了点“直接生成简历”也可以。
             </p>
           </div>
@@ -174,7 +174,7 @@ export default function CreateResumePage() {
             <button
               onClick={resetChat}
               disabled={streaming}
-              className="w-full rounded-lg border border-slate-200 py-2 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+              className="w-full rounded-lg border border-zinc-200 py-2 text-xs text-zinc-500 hover:bg-zinc-50 disabled:opacity-50"
             >
               清空并重新开始
             </button>
@@ -182,7 +182,7 @@ export default function CreateResumePage() {
         </aside>
 
         {/* 右侧对话区 */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-card">
           <div className="h-[560px] space-y-4 overflow-y-auto p-5">
             {messages.map((m, i) => (
               <MessageBubble key={i} message={m} streaming={streaming && i === messages.length - 1} />
@@ -194,7 +194,7 @@ export default function CreateResumePage() {
                     key={q}
                     onClick={() => handleSend(q)}
                     disabled={streaming}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 hover:border-blue-300 hover:text-blue-600 disabled:opacity-50"
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500 hover:border-brand-300 hover:text-zinc-900 disabled:opacity-50"
                   >
                     {q}
                   </button>
@@ -204,15 +204,15 @@ export default function CreateResumePage() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-slate-100 p-3">
+          <div className="border-t border-zinc-100 p-3">
             {hasBuilt ? (
               <div className="flex items-center gap-3">
                 <span className="flex-1 text-sm text-emerald-600">
-                  ✅ 简历已生成，可保存后继续诊断 / 优化
+                  简历已生成，可保存后继续诊断 / 优化
                 </span>
                 <button
                   onClick={resetChat}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:bg-slate-50"
+                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-50"
                 >
                   新建对话
                 </button>
@@ -238,12 +238,12 @@ export default function CreateResumePage() {
                   rows={2}
                   placeholder={streaming ? "AI 正在回复…" : "直接告诉 AI 你的信息…"}
                   disabled={streaming}
-                  className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500 disabled:bg-slate-50"
+                  className="min-h-[52px] flex-1 resize-none rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 disabled:bg-zinc-50"
                 />
                 <button
                   onClick={() => handleSend()}
                   disabled={streaming || !input.trim()}
-                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
                   {streaming ? "生成中…" : "发送"}
                 </button>
@@ -255,17 +255,17 @@ export default function CreateResumePage() {
 
       {/* 生成的 Markdown 预览 */}
       {built && (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-white p-5 shadow-card">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-800">📄 生成的简历（Markdown 预览）</h2>
+            <h2 className="text-sm font-semibold text-zinc-800">生成的简历（Markdown 预览）</h2>
             <button
               onClick={() => setBuilt(null)}
-              className="text-xs text-slate-400 hover:text-slate-600"
+              className="text-xs text-zinc-400 hover:text-zinc-600"
             >
               收起预览
             </button>
           </div>
-          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-700">
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 text-xs leading-relaxed text-zinc-700">
             {built}
           </pre>
         </div>
@@ -285,10 +285,10 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
+        className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-card ${
           isUser
-            ? "bg-blue-600 text-white"
-            : "border border-slate-200 bg-white text-slate-700"
+            ? "bg-zinc-900 text-white"
+            : "border border-zinc-200 bg-white text-zinc-700"
         }`}
       >
         {message.content}
