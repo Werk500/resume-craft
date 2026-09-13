@@ -77,13 +77,34 @@ export default function Home() {
   const [backendOk, setBackendOk] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/actuator/health`)
-      .then((r) => r.json())
-      .then((d) => {
-        setBackend(`后端 ${d.status}`);
-        setBackendOk(d.status === "UP");
-      })
-      .catch(() => setBackend("后端未连接"));
+    let cancelled = false;
+
+    async function checkBackend(attempt = 1): Promise<void> {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${API_BASE}/actuator/health`, { signal: controller.signal });
+        clearTimeout(timer);
+        const data = (await res.json()) as { status?: string };
+        if (cancelled) return;
+        const up = data?.status === "UP";
+        setBackend(up ? "后端运行中" : `后端状态 ${data?.status ?? "未知"}`);
+        setBackendOk(up);
+      } catch {
+        if (cancelled) return;
+        if (attempt < 3) {
+          setTimeout(() => void checkBackend(attempt + 1), 1500 * attempt);
+          return;
+        }
+        setBackend("后端未连接（请确认网关 8080 已启动）");
+        setBackendOk(false);
+      }
+    }
+
+    void checkBackend();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -116,12 +137,12 @@ export default function Home() {
             className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md active:translate-y-0"
           >
             <f.icon
-              className="h-7 w-7 text-blue-600 transition duration-200 group-hover:scale-105"
+              className="h-7 w-7 text-brand-600 transition duration-200 group-hover:scale-105"
               strokeWidth={1.75}
             />
             <h3 className="mt-3 font-semibold text-slate-800">{f.title}</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">{f.desc}</p>
-            <span className="mt-auto pt-4 text-xs font-medium text-blue-600">
+            <span className="mt-auto pt-4 text-xs font-medium text-brand-600">
               开始使用
               <span className="ml-1 inline-block transition-transform duration-200 group-hover:translate-x-0.5">
                 →

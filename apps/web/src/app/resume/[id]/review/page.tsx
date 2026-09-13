@@ -149,7 +149,7 @@ export default function OcrReviewPage({ params }: { params: { id: string } }) {
                   value={block.text}
                   onChange={(e) => updateBlockText(index, e.target.value)}
                   rows={Math.min(8, Math.max(2, block.text.split("\n").length + 1))}
-                  className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm leading-relaxed text-slate-700 outline-none focus:border-blue-500"
+                  className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm leading-relaxed text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
                 />
               </div>
             ))}

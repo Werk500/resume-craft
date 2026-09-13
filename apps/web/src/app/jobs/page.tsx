@@ -89,14 +89,14 @@ export default function JobsPage() {
         <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold text-slate-800">录入新岗位</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="公司名称 *" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
-            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="岗位名称 *" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
-            <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="部门" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
-            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="工作地点" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
-            <input value={form.salaryRange} onChange={(e) => setForm({ ...form, salaryRange: e.target.value })} placeholder="薪资范围" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            <input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="公司名称 *" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
+            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="岗位名称 *" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
+            <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="部门" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
+            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="工作地点" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
+            <input value={form.salaryRange} onChange={(e) => setForm({ ...form, salaryRange: e.target.value })} placeholder="薪资范围" className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
           </div>
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="岗位职责描述（JD 全文）" rows={4} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
-          <textarea value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="任职要求" rows={3} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="岗位职责描述（JD 全文）" rows={4} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
+          <textarea value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="任职要求" rows={3} className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500" />
           <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
             {saving ? "保存中…" : "保存"}
           </button>
@@ -120,7 +120,7 @@ export default function JobsPage() {
                   {j.title} <span className="ml-1 text-sm font-normal text-slate-400">{j.company}</span>
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {[j.department, j.location, j.salaryRange].filter(Boolean).join(" · ") || "—"}
+                  {[j.department, j.location, j.salaryRange].filter(Boolean).join(" · ") || "未提供"}
                 </p>
               </div>
               <button

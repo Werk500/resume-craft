@@ -188,7 +188,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                   value={targetJob}
                   onChange={(e) => setTargetJob(e.target.value)}
                   placeholder="目标岗位（可空 = 通用优化）"
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
                 />
                 <button
                   onClick={handleOptimize}

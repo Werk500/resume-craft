@@ -105,32 +105,32 @@ export default function ApplicationsPage() {
               type="date"
               value={form.appliedAt}
               onChange={(e) => setForm({ ...form, appliedAt: e.target.value })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
             <input
               value={form.channel}
               onChange={(e) => setForm({ ...form, channel: e.target.value })}
               placeholder="投递渠道（如 BOSS直聘）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
             <input
               type="number"
               value={form.resumeVersionId}
               onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
               placeholder="优化版本ID（可空）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
             <input
               type="number"
               value={form.jobId}
               onChange={(e) => setForm({ ...form, jobId: e.target.value })}
               placeholder="岗位ID（可空）"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as AppStatus })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             >
               {Object.entries(APP_STATUS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -140,7 +140,7 @@ export default function ApplicationsPage() {
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="备注"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
           </div>
           <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
@@ -176,7 +176,7 @@ export default function ApplicationsPage() {
                 <select
                   value={a.status}
                   onChange={(e) => handleStatusChange(a.id, e.target.value)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium outline-none ${STATUS_COLORS[a.status] || STATUS_COLORS.pending}`}
+                  className={`rounded-full px-3 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 ${STATUS_COLORS[a.status] || STATUS_COLORS.pending}`}
                 >
                   {Object.entries(APP_STATUS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>

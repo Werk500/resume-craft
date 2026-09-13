@@ -150,7 +150,7 @@ export default function CreateResumePage() {
               onChange={(e) => setTargetJob(e.target.value)}
               placeholder="如：Java 后端开发工程师"
               disabled={streaming}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             />
             <p className="mt-1.5 text-xs text-slate-400">填写后 AI 会针对岗位方向优化简历</p>
           </div>
@@ -238,7 +238,7 @@ export default function CreateResumePage() {
                   rows={2}
                   placeholder={streaming ? "AI 正在回复…" : "直接告诉 AI 你的信息…"}
                   disabled={streaming}
-                  className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 disabled:bg-slate-50"
+                  className="min-h-[52px] flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500 disabled:bg-slate-50"
                 />
                 <button
                   onClick={() => handleSend()}

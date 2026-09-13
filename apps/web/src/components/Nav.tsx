@@ -35,7 +35,7 @@ export default function Nav() {
   return (
     <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="shrink-0 text-lg font-bold text-blue-600">
+        <Link href="/" className="shrink-0 text-lg font-bold text-brand-600">
           AI 简历优化
         </Link>
 
@@ -47,7 +47,7 @@ export default function Nav() {
               aria-current={isActive(l.href) ? "page" : undefined}
               className={`shrink-0 rounded-lg px-3 py-1.5 transition ${
                 isActive(l.href)
-                  ? "bg-blue-50 font-medium text-blue-700"
+                  ? "bg-brand-50 font-medium text-brand-700"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
@@ -72,7 +72,7 @@ export default function Nav() {
           ) : (
             <Link
               href="/login"
-              className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700"
+              className="rounded-lg bg-brand-600 px-4 py-1.5 font-medium text-white hover:bg-brand-700"
             >
               登录
             </Link>

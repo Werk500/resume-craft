@@ -123,7 +123,7 @@ export default function MatchPage() {
             <select
               value={resumeId}
               onChange={(e) => setResumeId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             >
               {resumes.length === 0 && <option value="">暂无简历，请先上传</option>}
               {resumes.map((r) => (
@@ -138,7 +138,7 @@ export default function MatchPage() {
             <select
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-blue-500"
             >
               {jobs.length === 0 && <option value="">暂无岗位，请先录入</option>}
               {jobs.map((j) => (

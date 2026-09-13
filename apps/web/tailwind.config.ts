@@ -1,11 +1,35 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 const config: Config = {
   darkMode: ["class"],
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          "var(--font-outfit)",
+          ...defaultTheme.fontFamily.sans,
+          "PingFang SC",
+          "Microsoft YaHei",
+          "Noto Sans SC",
+        ],
+        mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
+      },
       colors: {
+        // 单一强调色（替代 Tailwind 默认 blue，降低“AI 默认色”观感）
+        brand: {
+          50: "#eef4ff",
+          100: "#dbe6ff",
+          200: "#bed0ff",
+          300: "#93b0ff",
+          400: "#6289fb",
+          500: "#3d63e8",
+          600: "#2c4cc9",
+          700: "#243da3",
+          800: "#1f3582",
+          900: "#1d2f6b",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -40,6 +64,12 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        control: "0.625rem",
+      },
+      boxShadow: {
+        card: "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12)",
+        "card-hover": "0 2px 4px rgba(15,23,42,0.05), 0 16px 32px -16px rgba(15,23,42,0.18)",
+        focus: "0 0 0 3px rgba(61,99,232,0.20)",
       },
     },
   },
