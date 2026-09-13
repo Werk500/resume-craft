@@ -44,7 +44,7 @@ public class ResumeChatController {
         List<ChatMessage> messages = request.getMessages();
         validateMessages(messages);
 
-        String userPrompt = PromptTemplates.buildUserPrompt(messages, request.getTargetJob());
+        String userPrompt = PromptTemplates.buildUserPrompt(messages, request.getTargetJob(),request.getTemplateId());
         log.info("对话创建简历: 消息数={}, targetJob={}",
                 messages.size(), request.getTargetJob());
         return aiService.chatStream(PromptTemplates.RESUME_CREATE_SYSTEM,userPrompt)

@@ -2,6 +2,7 @@ package com.resumecraft.server.ai.impl;
 
 
 import com.resumecraft.server.ai.dto.ChatMessage;
+import com.resumecraft.server.ai.template.ResumeTemplate;
 
 import java.util.List;
 
@@ -315,7 +316,7 @@ public class PromptTemplates {
      * @param targetJob 目标职位
      * @return 拼接后的用户提示词
      */
-    public static String buildUserPrompt(List<ChatMessage> messages, String targetJob) {
+    public static String buildUserPrompt(List<ChatMessage> messages, String targetJob,String templateId) {
         StringBuilder prompt = new StringBuilder();
 
         // 添加目标职位信息
@@ -329,6 +330,8 @@ public class PromptTemplates {
             String role = "user".equals(message.getRole()) ? "用户" : "助手";
             prompt.append(role).append("：").append(message.getContent()).append("\n");
         }
+
+        prompt.append(ResumeTemplate.fromId(templateId).toPromptBlock());
 
         return prompt.toString();
     }
