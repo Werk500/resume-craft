@@ -18,6 +18,7 @@ export async function streamResumeChat(
   messages: ChatMessage[],
   onDelta: (delta: string) => void,
   targetJob?: string,
+  templateId?: string,
 ): Promise<string> {
   let token: string | null = null;
   if (typeof window !== "undefined") {
@@ -30,7 +31,11 @@ export async function streamResumeChat(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ messages, targetJob: targetJob?.trim() || undefined }),
+    body: JSON.stringify({
+      messages,
+      targetJob: targetJob?.trim() || undefined,
+      templateId: templateId || undefined,
+    }),
   });
 
   if (response.status === 401) {

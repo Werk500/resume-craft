@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { extractBuiltResume, streamResumeChat, type ChatMessage } from "@/lib/chat";
+import {
+  DEFAULT_TEMPLATE_ID,
+  RESUME_TEMPLATES,
+  buildTemplateInstruction,
+  getTemplate,
+} from "@/lib/resumeTemplates";
 import type { Resume } from "@/lib/types";
 
 const GREETING: ChatMessage = {
@@ -33,6 +39,7 @@ export default function CreateResumePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [input, setInput] = useState("");
   const [targetJob, setTargetJob] = useState("");
+  const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
   const [streaming, setStreaming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [built, setBuilt] = useState<string | null>(null);
@@ -56,13 +63,21 @@ export default function CreateResumePage() {
 
     let assistantText = "";
     try {
+      // 过渡兜底：把模板结构约束附加到最后一条 user 消息的发送副本（界面不展示），
+      // 后端支持 templateId 后由服务端 Prompt 注入，两者一致、不冲突。
+      const apiHistory: ChatMessage[] = history.map((message, index) =>
+        index === history.length - 1
+          ? { ...message, content: `${message.content}\n${buildTemplateInstruction(templateId)}` }
+          : message,
+      );
       const full = await streamResumeChat(
-        history,
+        apiHistory,
         (delta) => {
           assistantText += delta;
           setMessages([...history, { role: "assistant", content: assistantText }]);
         },
         targetJob || undefined,
+        templateId,
       );
       assistantText = full;
 
@@ -153,6 +168,40 @@ export default function CreateResumePage() {
               className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <p className="mt-1.5 text-xs text-zinc-400">填写后 AI 会针对岗位方向优化简历</p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
+            <p className="text-sm font-semibold text-zinc-800">简历模板</p>
+            <div className="mt-3 space-y-2">
+              {RESUME_TEMPLATES.map((template) => {
+                const active = template.id === templateId;
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => setTemplateId(template.id)}
+                    disabled={streaming}
+                    aria-pressed={active}
+                    className={`w-full rounded-xl border p-3 text-left transition disabled:opacity-60 ${
+                      active
+                        ? "border-zinc-900 bg-zinc-50"
+                        : "border-zinc-200 hover:border-zinc-300"
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-zinc-900">{template.name}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{template.tagline}</p>
+                    {active && (
+                      <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">
+                        {template.sections.join(" / ")}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 rounded-lg bg-zinc-50 p-2.5 text-xs leading-relaxed text-zinc-400">
+              生成时按所选模板的章节顺序输出，信息不足的章节会保留标题并标注待补充。
+            </p>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
@@ -257,7 +306,12 @@ export default function CreateResumePage() {
       {built && (
         <div className="mt-5 rounded-2xl border border-emerald-200 bg-white p-5 shadow-card">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-800">生成的简历（Markdown 预览）</h2>
+            <h2 className="text-sm font-semibold text-zinc-800">
+              生成的简历（Markdown 预览）
+              <span className="ml-2 font-normal text-zinc-400">
+                模板：{getTemplate(templateId).name}
+              </span>
+            </h2>
             <button
               onClick={() => setBuilt(null)}
               className="text-xs text-zinc-400 hover:text-zinc-600"
