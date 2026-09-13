@@ -1,17 +1,75 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileSearch, Sparkles, Target, UploadCloud, Briefcase, Send } from "lucide-react";
+import {
+  Briefcase,
+  FileSearch,
+  GitCompare,
+  MessagesSquare,
+  ScanText,
+  Send,
+  Sparkles,
+  Target,
+  UploadCloud,
+} from "lucide-react";
 import Link from "next/link";
 import { API_BASE } from "@/lib/api";
 
 const features = [
-  { icon: UploadCloud, title: "简历上传", desc: "拖拽上传 PDF / Word，自动解析全文+联系信息", path: "/upload", done: true },
-  { icon: FileSearch, title: "简历诊断", desc: "AI 多维评分，可视化体检报告与改进建议", path: "/resumes", done: true },
-  { icon: Sparkles, title: "智能优化", desc: "AI 一键改写、STAR 法则、前后对比下载", path: "/resumes", done: true },
-  { icon: Target, title: "岗位匹配", desc: "JD 解析、AI 匹配度分析、可解释归因", path: "/match", done: true },
-  { icon: Briefcase, title: "岗位管理", desc: "录入目标公司 JD，随时对比匹配", path: "/jobs", done: true },
-  { icon: Send, title: "投递管理", desc: "投递记录、面试进度、状态流转跟踪", path: "/applications", done: true },
+  {
+    icon: UploadCloud,
+    title: "简历上传解析",
+    desc: "支持 PDF / Word / 图片，图片走 OCR 识别并给出分块置信度",
+    path: "/upload",
+  },
+  {
+    icon: ScanText,
+    title: "OCR 人工核对",
+    desc: "低置信度扫描件逐块确认后才参与评分，避免模糊内容污染诊断结果",
+    path: "/resumes",
+  },
+  {
+    icon: MessagesSquare,
+    title: "AI 对话创建",
+    desc: "问答式从零生成 Markdown 简历，保存后可继续诊断与优化",
+    path: "/create",
+  },
+  {
+    icon: FileSearch,
+    title: "AI 简历诊断",
+    desc: "信息完整度 / 表达质量 / 岗位匹配度三维评分与改进建议",
+    path: "/resumes",
+  },
+  {
+    icon: Sparkles,
+    title: "优化与逐句精修",
+    desc: "保留事实的整份改写，以及 DATA / METHOD / IMPACT 三方向精修",
+    path: "/resumes",
+  },
+  {
+    icon: Target,
+    title: "可解释岗位匹配",
+    desc: "关键词 40% + 语义 40% + 硬性条件 20%，输出命中与缺失明细",
+    path: "/match",
+  },
+  {
+    icon: GitCompare,
+    title: "版本对比与提升报告",
+    desc: "任意两个版本行级 Diff，定向优化前后匹配分对比与改动原因",
+    path: "/resumes",
+  },
+  {
+    icon: Briefcase,
+    title: "校招岗位库",
+    desc: "真实校招 JD 种子库，按公司或关键词检索目标岗位",
+    path: "/jobs",
+  },
+  {
+    icon: Send,
+    title: "投递跟踪",
+    desc: "看板式状态流转（待跟进 / 面试中 / 已拒绝等）与统计",
+    path: "/applications",
+  },
 ];
 
 export default function Home() {
@@ -52,20 +110,24 @@ export default function Home() {
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {features.map((f) => (
-          <div key={f.title} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <f.icon className="mb-3 h-8 w-8 text-blue-600" />
-            <h3 className="font-semibold text-slate-800">{f.title}</h3>
-            <p className="mt-1 text-sm text-slate-500">{f.desc}</p>
-            {f.done ? (
-              f.path && (
-                <Link href={f.path} className="mt-3 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200">
-                  开始使用 →
-                </Link>
-              )
-            ) : (
-              <span className="mt-3 inline-block rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">建设中</span>
-            )}
-          </div>
+          <Link
+            key={f.title}
+            href={f.path}
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md active:translate-y-0"
+          >
+            <f.icon
+              className="h-7 w-7 text-blue-600 transition duration-200 group-hover:scale-105"
+              strokeWidth={1.75}
+            />
+            <h3 className="mt-3 font-semibold text-slate-800">{f.title}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">{f.desc}</p>
+            <span className="mt-auto pt-4 text-xs font-medium text-blue-600">
+              开始使用
+              <span className="ml-1 inline-block transition-transform duration-200 group-hover:translate-x-0.5">
+                →
+              </span>
+            </span>
+          </Link>
         ))}
       </section>
     </main>

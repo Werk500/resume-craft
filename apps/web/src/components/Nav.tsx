@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { clearAuth, getCurrentUser } from "@/lib/api";
 
 const navLinks = [
@@ -14,10 +15,16 @@ const navLinks = [
 
 export default function Nav() {
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     setUser(getCurrentUser());
   }, []);
+
+  function isActive(href: string) {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   function handleLogout() {
     clearAuth();
@@ -27,24 +34,29 @@ export default function Nav() {
 
   return (
     <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-bold text-blue-600">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <Link href="/" className="shrink-0 text-lg font-bold text-blue-600">
           AI 简历优化
         </Link>
 
-        <div className="flex items-center gap-1 text-sm">
+        <div className="flex flex-1 items-center gap-1 overflow-x-auto text-sm">
           {navLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              aria-current={isActive(l.href) ? "page" : undefined}
+              className={`shrink-0 rounded-lg px-3 py-1.5 transition ${
+                isActive(l.href)
+                  ? "bg-blue-50 font-medium text-blue-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
             >
               {l.label}
             </Link>
           ))}
         </div>
 
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex shrink-0 items-center gap-3 text-sm">
           {user ? (
             <>
               <span className="text-slate-500">
