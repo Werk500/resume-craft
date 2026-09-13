@@ -54,3 +54,19 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* 列表入场（stagger 由内联 animationDelay 控制） */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.24s ease-out both;
+}

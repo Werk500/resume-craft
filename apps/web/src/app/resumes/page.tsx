@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UploadCloud } from "lucide-react";
+import { FileText, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
+import ListSkeleton from "@/components/ListSkeleton";
+import PageHeader from "@/components/PageHeader";
 import type { Resume } from "@/lib/types";
 
 export default function ResumesPage() {
@@ -20,20 +22,20 @@ export default function ResumesPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">我的简历</h1>
-          <p className="mt-1 text-sm text-zinc-500">上传解析、AI 诊断、一键优化</p>
-        </div>
-        <Link
-          href="/upload"
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          + 上传简历
-        </Link>
-      </header>
+      <PageHeader
+        title="我的简历"
+        description="上传解析、AI 诊断、一键优化，以及版本管理与对比"
+        action={
+          <Link
+            href="/upload"
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+          >
+            上传简历
+          </Link>
+        }
+      />
 
-      {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
+      {loading && <ListSkeleton rows={4} />}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
@@ -65,15 +67,17 @@ export default function ResumesPage() {
       )}
 
       <div className="space-y-3">
-        {resumes.map((r) => (
+        {resumes.map((r, index) => (
           <Link
             key={r.id}
             href={r.ocrStatus === "REVIEW" ? `/resume/${r.id}/review` : `/resume/${r.id}`}
-            className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-card transition hover:border-brand-300 hover:shadow-md"
+            className="rise flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-zinc-300"
+            style={{ animationDelay: `${index * 30}ms` }}
           >
             <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-200 text-lg">
-                              </div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-100">
+                <FileText className="h-5 w-5 text-zinc-500" strokeWidth={1.75} />
+              </div>
               <div>
                 <p className="flex items-center gap-2 font-medium text-zinc-800">
                   {r.fileName}

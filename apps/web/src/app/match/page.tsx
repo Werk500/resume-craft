@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 import type { Resume, Job, MatchResult, TargetedOptimizeResponse } from "@/lib/types";
 import ImprovementReport from "@/components/ImprovementReport";
 
@@ -104,10 +105,10 @@ export default function MatchPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900">AI 人岗匹配</h1>
-        <p className="mt-1 text-sm text-zinc-500">选择简历与目标岗位，AI 分析匹配度</p>
-      </header>
+      <PageHeader
+        title="AI 人岗匹配"
+        description="选择简历与目标岗位，得到可解释的匹配分与命中明细"
+      />
 
       {error && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
@@ -185,6 +186,25 @@ export default function MatchPage() {
               <MatchBar label="硬性条件" value={result.hardRequirementScore} />
             </div>
           </div>
+          {(result.keywordHits?.length ?? 0) > 0 && (
+            <div className="mt-5">
+              <p className="text-xs font-medium text-zinc-400">关键词命中</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {result.keywordHits!.map((hit) => (
+                  <span
+                    key={hit.keyword}
+                    className={`rounded-full px-2.5 py-1 text-xs ${
+                      hit.hit
+                        ? "bg-brand-50 text-brand-700"
+                        : "bg-zinc-100 text-zinc-500 line-through decoration-zinc-300"
+                    }`}
+                  >
+                    {hit.keyword}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {result.matchExplanation && (
             <div className="mt-5 rounded-xl bg-zinc-50 p-4">
               <p className="mb-1 text-xs font-medium text-zinc-400">AI 归因分析</p>
@@ -211,14 +231,18 @@ export default function MatchPage() {
 
 function MatchBar({ label, value }: { label: string; value: number | null }) {
   const v = Math.min(value ?? 0, 100);
-  const color = v >= 70 ? "bg-green-500" : v >= 40 ? "bg-yellow-400" : "bg-red-400";
+  const tone = v >= 70 ? "text-brand-700" : v >= 40 ? "text-amber-600" : "text-red-500";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <span className="w-20 shrink-0 text-xs text-zinc-500">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100">
-        <div className={`h-full ${color}`} style={{ width: `${v}%` }} />
+      <div className="relative h-px flex-1 bg-zinc-200">
+        <span className="absolute -top-[3px] h-[7px] w-px bg-zinc-300" style={{ left: "50%" }} />
+        <span
+          className="absolute -top-[4px] h-[9px] w-[2px] rounded bg-zinc-900"
+          style={{ left: `calc(${v}% - 1px)` }}
+        />
       </div>
-      <span className="w-8 text-right text-xs text-zinc-500">{Math.round(v)}</span>
+      <span className={`w-9 text-right text-sm font-medium ${tone}`}>{Math.round(v)}</span>
     </div>
   );
 }

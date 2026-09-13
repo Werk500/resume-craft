@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Briefcase } from "lucide-react";
 import { api } from "@/lib/api";
+import ListSkeleton from "@/components/ListSkeleton";
+import PageHeader from "@/components/PageHeader";
 import type { Job, JdAnalysis } from "@/lib/types";
 import JobRadar from "@/components/JobRadar";
 
@@ -67,18 +69,18 @@ export default function JobsPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">岗位管理</h1>
-          <p className="mt-1 text-sm text-zinc-500">录入 JD，AI 解析岗位要求 + 人岗匹配</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          {showForm ? "取消" : "+ 录入岗位"}
-        </button>
-      </header>
+      <PageHeader
+        title="岗位管理"
+        description="录入 JD，AI 解析岗位要求，并作为人岗匹配的目标"
+        action={
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+          >
+            {showForm ? "取消" : "录入岗位"}
+          </button>
+        }
+      />
 
       {error && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
@@ -104,7 +106,7 @@ export default function JobsPage() {
         </form>
       )}
 
-      {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
+      {loading && <ListSkeleton rows={4} />}
 
       {!loading && jobs.length === 0 && (
         <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-14 text-center">

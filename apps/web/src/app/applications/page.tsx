@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Send } from "lucide-react";
 import { api } from "@/lib/api";
+import ListSkeleton from "@/components/ListSkeleton";
+import PageHeader from "@/components/PageHeader";
 import { APP_STATUS, type ApplicationRecord, type AppStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -80,18 +82,18 @@ export default function ApplicationsPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">投递管理</h1>
-          <p className="mt-1 text-sm text-zinc-500">跟踪每一次投递与面试进度</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          {showForm ? "取消" : "+ 新增投递"}
-        </button>
-      </header>
+      <PageHeader
+        title="投递管理"
+        description="跟踪每一次投递与面试进度，按状态看板式流转"
+        action={
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+          >
+            {showForm ? "取消" : "新增投递"}
+          </button>
+        }
+      />
 
       {error && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
@@ -157,7 +159,7 @@ export default function ApplicationsPage() {
         </form>
       )}
 
-      {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
+      {loading && <ListSkeleton rows={3} />}
 
       {!loading && apps.length === 0 && (
         <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-14 text-center">
