@@ -44,3 +44,4 @@ apps/server/uploads/
 
 # 各微服务的上传目录（运行时产物）
 **/uploads/
+.next-build/

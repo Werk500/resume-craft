@@ -8,7 +8,6 @@ import { extractBuiltResume, streamResumeChat, type ChatMessage } from "@/lib/ch
 import {
   DEFAULT_TEMPLATE_ID,
   RESUME_TEMPLATES,
-  buildTemplateInstruction,
   getTemplate,
 } from "@/lib/resumeTemplates";
 import type { Resume } from "@/lib/types";
@@ -63,15 +62,8 @@ export default function CreateResumePage() {
 
     let assistantText = "";
     try {
-      // 过渡兜底：把模板结构约束附加到最后一条 user 消息的发送副本（界面不展示），
-      // 后端支持 templateId 后由服务端 Prompt 注入，两者一致、不冲突。
-      const apiHistory: ChatMessage[] = history.map((message, index) =>
-        index === history.length - 1
-          ? { ...message, content: `${message.content}\n${buildTemplateInstruction(templateId)}` }
-          : message,
-      );
       const full = await streamResumeChat(
-        apiHistory,
+        history,
         (delta) => {
           assistantText += delta;
           setMessages([...history, { role: "assistant", content: assistantText }]);

@@ -41,20 +41,3 @@ export function getTemplate(id: string | undefined): ResumeTemplate {
     RESUME_TEMPLATES.find((template) => template.id === DEFAULT_TEMPLATE_ID)!
   );
 }
-
-/**
- * 生成结构约束指令。
- *
- * 后端支持 `templateId` 后会由服务端 Prompt 注入；这里作为过渡兜底，
- * 追加在发送给接口的最后一条 user 消息中（界面不展示）。
- */
-export function buildTemplateInstruction(templateId: string): string {
-  const template = getTemplate(templateId);
-  return [
-    "",
-    "---",
-    `[简历结构要求] 使用「${template.name}」模板，严格按以下章节与顺序输出 Markdown：`,
-    template.sections.map((section, index) => `${index + 1}. ${section}`).join(" / "),
-    "信息不足的章节保留标题并写“待补充”，不要新增模板之外的章节。",
-  ].join("\n");
-}
