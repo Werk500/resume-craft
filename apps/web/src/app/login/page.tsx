@@ -33,7 +33,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-[80vh] items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-card">
           <h1 className="text-2xl font-bold text-slate-900">登录</h1>
           <p className="mt-1 text-sm text-slate-500">欢迎回来，继续你的简历优化</p>
 
@@ -44,7 +44,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="请输入用户名"
               />
             </div>
@@ -55,7 +55,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="请输入密码"
               />
             </div>
@@ -69,7 +69,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-brand-600 py-2.5 font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              className="w-full rounded-lg bg-zinc-900 py-2.5 font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
             >
               {loading ? "登录中…" : "登录"}
             </button>
@@ -77,7 +77,7 @@ export default function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-slate-500">
             还没有账号？{" "}
-            <Link href="/register" className="text-brand-600 hover:underline">
+            <Link href="/register" className="text-brand-700 hover:underline">
               去注册
             </Link>
           </p>

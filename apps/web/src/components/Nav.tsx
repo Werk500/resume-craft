@@ -33,9 +33,13 @@ export default function Nav() {
   }
 
   return (
-    <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+    <nav className="sticky top-0 z-10 border-b border-zinc-200 bg-white/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="shrink-0 text-lg font-bold text-brand-600">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900"
+        >
+          <span className="h-5 w-5 rounded-md bg-zinc-900" aria-hidden />
           AI 简历优化
         </Link>
 
@@ -47,8 +51,8 @@ export default function Nav() {
               aria-current={isActive(l.href) ? "page" : undefined}
               className={`shrink-0 rounded-lg px-3 py-1.5 transition ${
                 isActive(l.href)
-                  ? "bg-brand-50 font-medium text-brand-700"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-zinc-900 font-medium text-white"
+                  : "text-zinc-600 hover:bg-zinc-200/70 hover:text-zinc-900"
               }`}
             >
               {l.label}
@@ -59,12 +63,12 @@ export default function Nav() {
         <div className="flex shrink-0 items-center gap-3 text-sm">
           {user ? (
             <>
-              <span className="text-slate-500">
-                👋 {user.nickname || user.username}
+              <span className="hidden text-zinc-500 sm:inline">
+                {user.nickname || user.username}
               </span>
               <button
                 onClick={handleLogout}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100"
               >
                 退出
               </button>
@@ -72,7 +76,7 @@ export default function Nav() {
           ) : (
             <Link
               href="/login"
-              className="rounded-lg bg-brand-600 px-4 py-1.5 font-medium text-white hover:bg-brand-700"
+              className="rounded-lg bg-zinc-900 px-4 py-1.5 font-medium text-white transition hover:bg-zinc-800"
             >
               登录
             </Link>

@@ -35,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body
-        className={`${outfit.variable} ${jetbrainsMono.variable} min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 font-sans antialiased`}
+        className={`${outfit.variable} ${jetbrainsMono.variable} min-h-screen bg-[#f4f5f6] font-sans text-zinc-900 antialiased`}
       >
         <a
           href="#main"

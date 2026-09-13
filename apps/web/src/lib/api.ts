@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
+// 默认同源（经 next.config.mjs 的 rewrites 转发到网关 8080）；
+// 如需直连网关，可在 .env.local 设置 NEXT_PUBLIC_API_BASE=http://localhost:8080
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 /** 后端统一响应结构 */
 interface ApiEnvelope<T> {

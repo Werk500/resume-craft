@@ -39,7 +39,7 @@ export default function RegisterPage() {
   return (
     <main className="flex min-h-[80vh] items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-card">
           <h1 className="text-2xl font-bold text-slate-900">注册</h1>
           <p className="mt-1 text-sm text-slate-500">创建账号，开启 AI 简历之旅</p>
 
@@ -52,7 +52,7 @@ export default function RegisterPage() {
                 required
                 minLength={3}
                 maxLength={20}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="3-20 个字符"
               />
             </div>
@@ -62,7 +62,7 @@ export default function RegisterPage() {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={50}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="默认使用用户名"
               />
             </div>
@@ -75,7 +75,7 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 maxLength={20}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-200"
                 placeholder="6-20 个字符"
               />
             </div>
@@ -89,7 +89,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-brand-600 py-2.5 font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              className="w-full rounded-lg bg-zinc-900 py-2.5 font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
             >
               {loading ? "注册中…" : "注册"}
             </button>
@@ -97,7 +97,7 @@ export default function RegisterPage() {
 
           <p className="mt-4 text-center text-sm text-slate-500">
             已有账号？{" "}
-            <Link href="/login" className="text-brand-600 hover:underline">
+            <Link href="/login" className="text-brand-700 hover:underline">
               去登录
             </Link>
           </p>
