@@ -1,0 +1,154 @@
+# 全套容器化：mysql + redis + nacos + 5 个后端服务 + 前端
+#
+# 使用：
+#   docker compose -f docker-compose.full.yml up -d --build
+#   前端 http://localhost:3001   网关 http://localhost:8080
+#
+# 说明：
+# - 中间件只在容器网络内暴露，不映射宿主机端口，避免与本机已安装的服务冲突
+# - 需要能正常拉取 nacos/nacos-server 镜像；内网受限时可改用 docker-compose.app.yml
+# - AI_API_KEY 等从根目录 .env 读取（未配置时使用占位值，AI 功能不可用）
+
+name: resume-craft-full
+
+services:
+  mysql:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: resume_craft
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "123456"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nacos:
+    image: nacos/nacos-server:v2.3.0
+    environment:
+      MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+
+  auth-service:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth
+        JAR_NAME: resumecraft-auth-0.1.0-SNAPSHOT.jar
+    environment: &full-env
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: "123456"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "123456"
+      NACOS_ADDR: nacos:8848
+      AI_API_KEY: ${AI_API_KEY:-sk-placeholder}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-key-change-before-prod-32bytes}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  resume-service:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: resume
+        JAR_NAME: resumecraft-resume-0.1.0-SNAPSHOT.jar
+    environment: *full-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  job-match-service:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: job-match
+        JAR_NAME: resumecraft-job-match-0.1.0-SNAPSHOT.jar
+    environment: *full-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  application-service:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: application
+        JAR_NAME: resumecraft-application-0.1.0-SNAPSHOT.jar
+    environment: *full-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  gateway:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: gateway
+        JAR_NAME: resume-craft-gateway-0.1.0-SNAPSHOT.jar
+    environment: *full-env
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        GATEWAY_URL: http://gateway:8080
+    environment:
+      GATEWAY_URL: http://gateway:8080
+    ports:
+      - "3001:3001"
+    depends_on:
+      gateway:
+        condition: service_started
+
+volumes:
+  mysql-data:

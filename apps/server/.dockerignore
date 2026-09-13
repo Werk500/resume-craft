@@ -1,0 +1,7 @@
+**/target/
+logs/
+uploads/
+.idea/
+.mvn/
+settings-dev.xml
+*.log

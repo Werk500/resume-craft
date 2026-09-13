@@ -129,6 +129,35 @@ cd apps/server
 pwsh ./stop-services.ps1 -Force
 ```
 
+### 方式 B：Docker 部署（可选）
+
+> 前提：Docker Desktop 已启动。后端为多阶段构建（Maven → JRE），前端为 Next.js 多阶段构建（`npm ci` → `next build` → `next start`），首次构建需下载依赖，耗时较长。
+
+**B1：应用容器化 + 宿主机中间件（推荐，本机已有 MySQL / Redis / Nacos）**
+
+```bash
+# 先停掉本机直接运行的后端，避免 8080 端口冲突
+pwsh apps/server/stop-services.ps1 -Force
+
+docker compose -f docker-compose.app.yml up -d --build
+```
+
+- 前端：http://localhost:3001 ，网关：http://localhost:8080
+- 容器通过 `host.docker.internal` 访问宿主机中间件（compose 已配置 `extra_hosts`）
+- 停止：`docker compose -f docker-compose.app.yml down`
+
+**B2：全套容器化（含 MySQL / Redis / Nacos，适合全新环境）**
+
+```bash
+docker compose -f docker-compose.full.yml up -d --build
+```
+
+- 中间件只在容器网络内暴露，**不映射宿主机端口**，避免与本机已安装的服务冲突
+- 需要能正常拉取 `nacos/nacos-server` 镜像；内网受限时用 B1
+- 停止：`docker compose -f docker-compose.full.yml down`；连数据一起清理：`down -v`
+
+AI Key 从根目录 `.env` 读取（`AI_API_KEY` 等）；未配置时使用占位值，AI 相关功能不可用。
+
 ## 演示路径（校招闭环）
 
 1. 注册 / 登录 → 上传简历（PDF / Word / 图片）
@@ -177,5 +206,5 @@ pwsh ./reset-demo.ps1
 
 - 集成测试（Testcontainers 级别的服务间联调）与前端组件测试待补充
 - 可观测性与治理待加强：跨服务 traceId、Prometheus 指标、网关限流、AI 调用熔断/重试
-- 目前依赖本机中间件启动，Dockerfile / 一键 Compose 全套部署待完善
+- 本机开发依赖本机中间件（MySQL / Redis / Nacos）；如需一键部署可用 `docker-compose.app.yml`（见上文）
 - 登录方式目前仅用户名密码，未接入第三方登录

@@ -1,0 +1,97 @@
+# 应用容器化（中间件使用宿主机已运行的 MySQL / Redis / Nacos）
+#
+# 使用：
+#   1) 确认宿主机已启动 MySQL(3306) / Redis(6379) / Nacos(8848)
+#   2) 停掉本机直接运行的后端与前端（避免 8080 / 3001 端口冲突）：
+#        pwsh apps/server/stop-services.ps1 -Force
+#   3) docker compose -f docker-compose.app.yml up -d --build
+#   4) 前端 http://localhost:3001   网关 http://localhost:8080
+#
+# 说明：容器通过 host.docker.internal 访问宿主机中间件；
+#      如需完全容器化（含中间件），使用 docker-compose.full.yml
+
+name: resume-craft
+
+x-backend-env: &backend-env
+  MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+  MYSQL_PORT: ${MYSQL_PORT:-3306}
+  MYSQL_USERNAME: ${MYSQL_USERNAME:-root}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD:-123456}
+  REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-123456}
+  NACOS_ADDR: ${NACOS_ADDR:-host.docker.internal:8848}
+  AI_API_KEY: ${AI_API_KEY:-sk-placeholder}
+  AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+  AI_MODEL: ${AI_MODEL:-deepseek-chat}
+  JWT_SECRET: ${JWT_SECRET:-dev-only-secret-key-change-before-prod-32bytes}
+  INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+
+x-backend-service: &backend-service
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  environment: *backend-env
+  restart: unless-stopped
+
+services:
+  auth-service:
+    <<: *backend-service
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth
+        JAR_NAME: resumecraft-auth-0.1.0-SNAPSHOT.jar
+
+  resume-service:
+    <<: *backend-service
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: resume
+        JAR_NAME: resumecraft-resume-0.1.0-SNAPSHOT.jar
+
+  job-match-service:
+    <<: *backend-service
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: job-match
+        JAR_NAME: resumecraft-job-match-0.1.0-SNAPSHOT.jar
+
+  application-service:
+    <<: *backend-service
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: application
+        JAR_NAME: resumecraft-application-0.1.0-SNAPSHOT.jar
+
+  gateway:
+    <<: *backend-service
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        MODULE: gateway
+        JAR_NAME: resume-craft-gateway-0.1.0-SNAPSHOT.jar
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        GATEWAY_URL: http://gateway:8080
+    environment:
+      GATEWAY_URL: http://gateway:8080
+    ports:
+      - "3001:3001"
+    depends_on:
+      gateway:
+        condition: service_started
+    restart: unless-stopped
