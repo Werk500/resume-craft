@@ -115,10 +115,10 @@ export default function Home() {
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href="/upload"
-              className="group inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 active:tranzinc-y-px"
+              className="group inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 active:translate-y-px"
             >
               上传简历
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:tranzinc-x-0.5" />
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/match"
@@ -181,7 +181,7 @@ export default function Home() {
             <Link
               key={step.no}
               href={step.href}
-              className={`group flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 transition duration-200 hover:-tranzinc-y-0.5 hover:border-zinc-300 hover:shadow-card active:tranzinc-y-0 ${step.span}`}
+              className={`group flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 transition duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-card active:translate-y-0 ${step.span}`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-brand-600">{step.no}</span>
@@ -194,7 +194,7 @@ export default function Home() {
               <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">{step.desc}</p>
               <span className="mt-auto inline-flex items-center gap-1 pt-5 text-xs font-medium text-zinc-500 transition group-hover:text-zinc-900">
                 进入环节
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:tranzinc-x-0.5" />
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
           ))}

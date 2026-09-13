@@ -39,8 +39,9 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">用户名</label>
+              <label htmlFor="login-username" className="mb-1 block text-sm font-medium text-zinc-700">用户名</label>
               <input
+                id="login-username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -49,8 +50,9 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">密码</label>
+              <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-zinc-700">密码</label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

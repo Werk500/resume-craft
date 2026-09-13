@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Send } from "lucide-react";
 import { api } from "@/lib/api";
 import { APP_STATUS, type ApplicationRecord, type AppStatus } from "@/lib/types";
 
@@ -103,11 +105,13 @@ export default function ApplicationsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               type="date"
+              aria-label="投递日期"
               value={form.appliedAt}
               onChange={(e) => setForm({ ...form, appliedAt: e.target.value })}
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <input
+              aria-label="投递渠道"
               value={form.channel}
               onChange={(e) => setForm({ ...form, channel: e.target.value })}
               placeholder="投递渠道（如 BOSS直聘）"
@@ -115,6 +119,7 @@ export default function ApplicationsPage() {
             />
             <input
               type="number"
+              aria-label="优化版本ID"
               value={form.resumeVersionId}
               onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
               placeholder="优化版本ID（可空）"
@@ -122,12 +127,14 @@ export default function ApplicationsPage() {
             />
             <input
               type="number"
+              aria-label="岗位ID"
               value={form.jobId}
               onChange={(e) => setForm({ ...form, jobId: e.target.value })}
               placeholder="岗位ID（可空）"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <select
+              aria-label="投递状态"
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value as AppStatus })}
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
@@ -137,6 +144,7 @@ export default function ApplicationsPage() {
               ))}
             </select>
             <input
+              aria-label="备注"
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="备注"
@@ -152,8 +160,26 @@ export default function ApplicationsPage() {
       {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
 
       {!loading && apps.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-16 text-center">
-          <p className="text-zinc-500">还没有投递记录</p>
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-14 text-center">
+          <Send className="mx-auto h-7 w-7 text-zinc-400" strokeWidth={1.75} />
+          <h2 className="mt-4 text-base font-semibold text-zinc-900">还没有投递记录</h2>
+          <p className="mx-auto mt-1.5 max-w-[42ch] text-sm leading-relaxed text-zinc-500">
+            先选一个目标岗位做匹配与定向优化，投递之后在这里跟踪每一家的进度。
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/match"
+              className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              去匹配岗位
+            </Link>
+            <Link
+              href="/jobs"
+              className="rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              浏览岗位库
+            </Link>
+          </div>
         </div>
       )}
 

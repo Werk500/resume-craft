@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Resume } from "@/lib/types";
 
@@ -40,8 +41,26 @@ export default function ResumesPage() {
       )}
 
       {!loading && !error && resumes.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-16 text-center">
-          <p className="text-zinc-500">还没有简历，点击右上角上传第一份简历</p>
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-14 text-center">
+          <UploadCloud className="mx-auto h-7 w-7 text-zinc-400" strokeWidth={1.75} />
+          <h2 className="mt-4 text-base font-semibold text-zinc-900">还没有简历</h2>
+          <p className="mx-auto mt-1.5 max-w-[42ch] text-sm leading-relaxed text-zinc-500">
+            上传 PDF、Word 或图片开始解析，也可以用 AI 对话从零生成一份 Markdown 简历。
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/upload"
+              className="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              上传简历
+            </Link>
+            <Link
+              href="/create"
+              className="rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              AI 对话创建
+            </Link>
+          </div>
         </div>
       )}
 

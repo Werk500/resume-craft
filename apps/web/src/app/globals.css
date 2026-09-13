@@ -38,7 +38,19 @@
 
   /* 键盘可达性兜底：任何交互元素聚焦时都应有可见轮廓 */
   :focus-visible {
-    outline: 2px solid #3d63e8;
+    outline: 2px solid #059669;
     outline-offset: 2px;
+  }
+}
+
+/* 降低动效偏好：关闭过渡与动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

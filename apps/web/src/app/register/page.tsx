@@ -45,8 +45,9 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">用户名</label>
+              <label htmlFor="register-username" className="mb-1 block text-sm font-medium text-zinc-700">用户名</label>
               <input
+                id="register-username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -57,8 +58,9 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">昵称（可选）</label>
+              <label htmlFor="register-nickname" className="mb-1 block text-sm font-medium text-zinc-700">昵称（可选）</label>
               <input
+                id="register-nickname"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={50}
@@ -67,8 +69,9 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">密码</label>
+              <label htmlFor="register-password" className="mb-1 block text-sm font-medium text-zinc-700">密码</label>
               <input
+                id="register-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

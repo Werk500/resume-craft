@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Briefcase } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Job, JdAnalysis } from "@/lib/types";
 import JobRadar from "@/components/JobRadar";
@@ -89,14 +90,14 @@ export default function JobsPage() {
         <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
           <h2 className="mb-4 font-semibold text-zinc-800">录入新岗位</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="公司名称 *" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
-            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="岗位名称 *" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
-            <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="部门" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
-            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="工作地点" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
-            <input value={form.salaryRange} onChange={(e) => setForm({ ...form, salaryRange: e.target.value })} placeholder="薪资范围" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+            <input required value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="公司名称 *" aria-label="公司名称 *" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+            <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="岗位名称 *" aria-label="岗位名称 *" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+            <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="部门" aria-label="部门" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="工作地点" aria-label="工作地点" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+            <input value={form.salaryRange} onChange={(e) => setForm({ ...form, salaryRange: e.target.value })} placeholder="薪资范围" aria-label="薪资范围" className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
           </div>
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="岗位职责描述（JD 全文）" rows={4} className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
-          <textarea value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="任职要求" rows={3} className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="岗位职责描述（JD 全文）" aria-label="岗位职责描述（JD 全文）" rows={4} className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
+          <textarea value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="任职要求" aria-label="任职要求" rows={3} className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900" />
           <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-zinc-900 px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             {saving ? "保存中…" : "保存"}
           </button>
@@ -106,8 +107,18 @@ export default function JobsPage() {
       {loading && <p className="py-10 text-center text-zinc-400">加载中…</p>}
 
       {!loading && jobs.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-16 text-center">
-          <p className="text-zinc-500">还没有岗位，录入第一份 JD 开始匹配</p>
+        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-14 text-center">
+          <Briefcase className="mx-auto h-7 w-7 text-zinc-400" strokeWidth={1.75} />
+          <h2 className="mt-4 text-base font-semibold text-zinc-900">还没有岗位</h2>
+          <p className="mx-auto mt-1.5 max-w-[42ch] text-sm leading-relaxed text-zinc-500">
+            录入一份 JD 开始匹配；如果你导入过种子数据，岗位会直接出现在这里。
+          </p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="mt-6 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+          >
+            录入岗位
+          </button>
         </div>
       )}
 
