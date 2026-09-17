@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { KeywordHit, MatchResult, TargetedOptimizeResponse } from "@/lib/types";
+import SemanticModeBadge from "@/components/SemanticModeBadge";
 
 interface ImprovementReportProps {
   resumeId: string;
@@ -74,6 +75,28 @@ export default function ImprovementReport({
           </div>
         ))}
       </div>
+
+      {/* 语义评分来源：前后若走了不同的评分路径必须显式标注，
+          否则"语义分变化"可能来自口径切换而非内容优化 */}
+      {(before.dimensionDetails?.semantic?.mode || after.dimensionDetails?.semantic?.mode) && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-zinc-50 px-3 py-2">
+          <span className="text-xs text-zinc-400">语义评分来源</span>
+          <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+            优化前
+            <SemanticModeBadge
+              mode={before.dimensionDetails?.semantic?.mode}
+              reason={before.dimensionDetails?.semantic?.reason}
+            />
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+            优化后
+            <SemanticModeBadge
+              mode={after.dimensionDetails?.semantic?.mode}
+              reason={after.dimensionDetails?.semantic?.reason}
+            />
+          </span>
+        </div>
+      )}
 
       {/* 提升原因 */}
       <div className="mt-5 space-y-3">

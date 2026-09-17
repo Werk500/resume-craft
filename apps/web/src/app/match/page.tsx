@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import type { Resume, Job, MatchResult, TargetedOptimizeResponse } from "@/lib/types";
 import ImprovementReport from "@/components/ImprovementReport";
+import MatchScoreCard from "@/components/MatchScoreCard";
 
 export default function MatchPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -158,7 +159,7 @@ export default function MatchPage() {
             disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
             className="rounded-lg bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"
           >
-            {matching ? "AI 匹配分析中，约 20~40 秒…" : "仅看匹配度"}
+            {matching ? "匹配分析中，约 5~20 秒…" : "仅看匹配度"}
           </button>
           <button
             onClick={handleTargetedOptimize}
@@ -172,45 +173,8 @@ export default function MatchPage() {
 
       {/* 结果区 */}
       {result && (
-        <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-card">
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <p className="text-5xl font-bold text-zinc-900">
-                {Math.round(result.overallScore ?? 0)}
-              </p>
-              <p className="mt-1 text-xs text-zinc-400">综合匹配度</p>
-            </div>
-            <div className="flex-1 space-y-2">
-              <MatchBar label="关键词覆盖" value={result.keywordCoverage} />
-              <MatchBar label="语义匹配" value={result.semanticSimilarity} />
-              <MatchBar label="硬性条件" value={result.hardRequirementScore} />
-            </div>
-          </div>
-          {(result.keywordHits?.length ?? 0) > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-medium text-zinc-400">关键词命中</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {result.keywordHits!.map((hit) => (
-                  <span
-                    key={hit.keyword}
-                    className={`rounded-full px-2.5 py-1 text-xs ${
-                      hit.hit
-                        ? "bg-brand-50 text-brand-700"
-                        : "bg-zinc-100 text-zinc-500 line-through decoration-zinc-300"
-                    }`}
-                  >
-                    {hit.keyword}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {result.matchExplanation && (
-            <div className="mt-5 rounded-xl bg-zinc-50 p-4">
-              <p className="mb-1 text-xs font-medium text-zinc-400">AI 归因分析</p>
-              <p className="text-sm leading-relaxed text-zinc-600">{result.matchExplanation}</p>
-            </div>
-          )}
+        <div className="mt-6">
+          <MatchScoreCard result={result} />
         </div>
       )}
 
@@ -226,23 +190,5 @@ export default function MatchPage() {
         </div>
       )}
     </main>
-  );
-}
-
-function MatchBar({ label, value }: { label: string; value: number | null }) {
-  const v = Math.min(value ?? 0, 100);
-  const tone = v >= 70 ? "text-brand-700" : v >= 40 ? "text-amber-600" : "text-red-500";
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-20 shrink-0 text-xs text-zinc-500">{label}</span>
-      <div className="relative h-px flex-1 bg-zinc-200">
-        <span className="absolute -top-[3px] h-[7px] w-px bg-zinc-300" style={{ left: "50%" }} />
-        <span
-          className="absolute -top-[4px] h-[9px] w-[2px] rounded bg-zinc-900"
-          style={{ left: `calc(${v}% - 1px)` }}
-        />
-      </div>
-      <span className={`w-9 text-right text-sm font-medium ${tone}`}>{Math.round(v)}</span>
-    </div>
   );
 }

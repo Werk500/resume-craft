@@ -15,6 +15,7 @@ import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.domain.MatchResultMapper;
 import com.resumecraft.server.job.match.MatchEngine;
+import com.resumecraft.server.job.match.MatchContext;
 import com.resumecraft.server.job.service.MatchService;
 import feign.FeignException;
 import jakarta.annotation.Resource;
@@ -147,7 +148,9 @@ public class MatchServiceImpl implements MatchService {
 //        matchResult.setResumeId(resumeId);
 //        matchResult.setUserId(resumeUserId);
 
-        MatchResult matchResult = matchEngine.execute(resumeText, job);
+        // 传入上下文：语义评分可据此走向量检索（versionId=null 表示主简历）
+        MatchResult matchResult = matchEngine.execute(resumeText, job,
+                new MatchContext(resumeId, versionId, resumeUserId));
         matchResult.setJobId(jobId);
         matchResult.setResumeId(resumeId);
         matchResult.setUserId(resumeUserId);

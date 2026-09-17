@@ -78,6 +78,23 @@ app:
     expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
     # 内部服务调用 Token（用于 Feign 调用其他微服务的 /internal/** 接口）
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:true}
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: ${EMBEDDING_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+    model: ${EMBEDDING_MODEL:text-embedding-v3}
+    dimensions: ${EMBEDDING_DIMENSIONS:1024}
+    timeout-ms: 5000
+  vector:
+    # 降级开关：设为 false 时语义评分直接回落 AI 近似打分（验收用）
+    enabled: ${VECTOR_ENABLED:true}
+    pg:
+      url: ${PG_URL:jdbc:postgresql://localhost:5432/resume_craft_vector}
+      username: ${PG_USER:postgres}
+      password: ${PG_PASSWORD:}
+      driver-class-name: org.postgresql.Driver
+      max-pool-size: 4
+      connection-timeout-ms: 3000
 
 logging:
   pattern:

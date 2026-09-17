@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.common.cache.CacheKeys;
+import com.resumecraft.server.common.feign.JobMatchClient;
 import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
 import com.resumecraft.server.file.FileStorageService;
@@ -67,6 +68,8 @@ public class ResumeServiceImpl implements ResumeService {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private ObjectMapper objectMapper;
+    @Resource
+    private JobMatchClient jobMatchClient;
 
     /**
      * 上传并解析简历。
@@ -229,7 +232,18 @@ public class ResumeServiceImpl implements ResumeService {
         int resumeDeleted = resumeMapper.deleteById(id);
         log.info("删除简历主记录: {} 条", resumeDeleted);
 
-        //5.删除磁盘上的文件（失败只记日志，不影响已提交的数据库事务）
+        //5.删除向量库中的向量（PostgreSQL，由 job-match 独占，需跨服务调用）
+        //  放在本地删除之后：向量是可重建的派生数据，清理失败不该阻断简历删除，
+        //  因此只记日志、不抛异常（与下方文件删除同样的容错策略）
+        try {
+            Integer vectorDeleted = jobMatchClient.deleteResumeVectors(id);
+            log.info("删除简历向量: {} 条", vectorDeleted);
+        } catch (Exception e) {
+            log.warn("删除简历向量失败（不影响简历删除，向量为可重建的派生数据）: resumeId={}, err={}",
+                    id, e.getMessage());
+        }
+
+        //6.删除磁盘上的文件（失败只记日志，不影响已提交的数据库事务）
         try {
             fileStorageService.delete(resume.getFilePath());
             log.info("文件删除成功: {}", resume.getFilePath());

@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.util.VectorUtils;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
+import com.resumecraft.server.job.vector.VectorStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.simpleframework.xml.util.Match;
@@ -32,6 +34,8 @@ public class MatchEngine {
     private ObjectMapper objectMapper;
     @Resource
     private AiService aiService;
+    @Resource
+    private VectorStore vectorStore;
 
 
 
@@ -43,6 +47,18 @@ public class MatchEngine {
      * @return 匹配结果
      */
     public MatchResult execute(String resumeText, Job job) {
+        return execute(resumeText, job, MatchContext.mainResume(null));
+    }
+
+    /**
+     * 执行匹配计算（携带上下文，语义评分可走向量检索）
+     *
+     * @param resumeText 简历文本（原文或优化版本）
+     * @param job        职位信息
+     * @param context    简历/版本/用户标识；为空或无 resumeId 时语义分回落 AI 近似
+     * @return 匹配结果
+     */
+    public MatchResult execute(String resumeText, Job job, MatchContext context) {
 
         log.info("开始匹配计算，职位: {}", job.getTitle());
 
@@ -54,7 +70,7 @@ public class MatchEngine {
         double keywordScore = keywordResult.getScore();
 
         //3.语义评分（40%）
-        SemanticResult semanticResult = calculateSemanticMatch(resumeText, job);
+        SemanticResult semanticResult = calculateSemanticMatch(resumeText, job, context);
         double semanticScore = semanticResult.getScore();
 
         //4.硬性条件（20%）
@@ -258,9 +274,25 @@ public class MatchEngine {
     }
 
     /**
-     * AI 语义匹配评分
+     * 语义相似度评分（三段式，逐级降级）
+     *
+     * <ol>
+     *   <li>向量模式：简历与 JD 各自 embedding，算余弦相似度，结果稳定可复现</li>
+     *   <li>AI 近似：向量库不可用（未配 Key / PG 挂了 / 维度不符）时，退回大模型打分</li>
+     *   <li>固定分兜底：大模型也不可用时返回 50 分并标注 mode</li>
+     * </ol>
+     * 三种 mode 都会通过 {@code dimensionDetails.semantic.mode} 上报前端，
+     * 保证"这个分数从哪来的"始终可观测。
      */
-    private SemanticResult calculateSemanticMatch(String resumeText, Job job) {
+    private SemanticResult calculateSemanticMatch(String resumeText, Job job, MatchContext context) {
+
+        // ---------- 第一段：向量模式 ----------
+        SemanticResult vectorResult = tryVectorSemanticMatch(resumeText, job, context);
+        if (vectorResult != null) {
+            return vectorResult;
+        }
+
+        // ---------- 第二段：AI 近似打分 ----------
         try {
             String userPrompt = PromptTemplates.semanticMatchUser(
                     resumeText,
@@ -292,6 +324,7 @@ public class MatchEngine {
             return SemanticResult.builder()
                     .score(score)
                     .reason(reason)
+                    .mode("AI_APPROX")
                     .build();
 
         } catch (Exception e) {
@@ -299,8 +332,53 @@ public class MatchEngine {
             return SemanticResult.builder()
                     .score(50)
                     .reason("语义评分服务暂时不可用，使用默认分")
+                    .mode("RULE_FALLBACK")
                     .build();
         }
+    }
+
+    /**
+     * 向量语义评分。任一步不可用都返回 null，由调用方继续降级。
+     */
+    private SemanticResult tryVectorSemanticMatch(String resumeText, Job job, MatchContext context) {
+        if (context == null || context.resumeId() == null) {
+            return null;
+        }
+        try {
+            String jobText = buildJobText(job);
+
+            float[] resumeVector = vectorStore.getOrCreateResumeVector(
+                    context.resumeId(), context.versionId(), context.userId(), resumeText);
+            if (resumeVector == null) {
+                return null;
+            }
+            float[] jobVector = vectorStore.getOrCreateJobVector(job.getId(), jobText);
+            if (jobVector == null) {
+                return null;
+            }
+
+            double cosine = VectorUtils.cosine(resumeVector, jobVector);
+            double score = VectorUtils.normalizeToScore(cosine);
+
+            return SemanticResult.builder()
+                    .score(score)
+                    .reason(String.format("向量余弦相似度 %.4f，按 %.2f~%.2f 区间映射为 %.1f 分",
+                            cosine, 0.30, 0.90, score))
+                    .mode("EMBEDDING")
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("向量语义评分失败，降级为 AI 近似打分: resumeId={}, err={}",
+                    context.resumeId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /** 岗位向量化的原文：标题 + 描述 + 要求，保持与关键词抽取同源 */
+    private String buildJobText(Job job) {
+        String desc = job.getDescription() == null ? "" : job.getDescription();
+        String req = job.getRequirements() == null ? "" : job.getRequirements();
+        return job.getTitle() + "\n" + desc + "\n" + req;
     }
 
     /**
@@ -469,7 +547,7 @@ public class MatchEngine {
                 .semantic(MatchDimensionDetails.Semantic.builder()
                         .score(round(semantic.getScore()))
                         .reason(semantic.getReason())
-                        .mode("AI_APPROX")
+                        .mode(semantic.getMode())
                         .build())
                 .hardRequirement(MatchDimensionDetails.HardRequirement.builder()
                         .educationRequirement(hard.getEducationRequirement())

@@ -10,6 +10,7 @@ import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.domain.MatchResultMapper;
 import com.resumecraft.server.job.match.MatchEngine;
+import com.resumecraft.server.job.match.MatchContext;
 import feign.FeignException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -156,7 +157,9 @@ public class MatchServiceFeignTest {
                 .jobId(JOB_ID)
                 .overallScore(82.0)
                 .build();
-        when(matchEngine.execute(anyString(), any(Job.class))).thenReturn(engineResult);
+        // 生产代码改为三参数重载（携带 MatchContext 用于向量语义评分），mock 需同步
+        when(matchEngine.execute(anyString(), any(Job.class), any(MatchContext.class)))
+                .thenReturn(engineResult);
 
         var response = matchService.match(RESUME_ID, JOB_ID);
 
