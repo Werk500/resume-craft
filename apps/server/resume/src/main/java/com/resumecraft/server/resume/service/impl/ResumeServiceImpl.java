@@ -8,11 +8,13 @@ import com.resumecraft.server.common.feign.JobMatchClient;
 import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
 import com.resumecraft.server.file.FileStorageService;
+import com.resumecraft.server.mq.AfterCommitExecutor;
 import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
 import com.resumecraft.server.resume.extractor.ResumeInfoExtractor;
+import com.resumecraft.server.resume.mq.EmbeddingTaskProducer;
 import com.resumecraft.server.resume.parser.ConfidenceParser;
 import com.resumecraft.server.resume.parser.OcrStatusDecider;
 import com.resumecraft.server.resume.parser.ResumeParser;
@@ -27,6 +29,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
@@ -70,6 +75,10 @@ public class ResumeServiceImpl implements ResumeService {
     private ObjectMapper objectMapper;
     @Resource
     private JobMatchClient jobMatchClient;
+    @Resource
+    private EmbeddingTaskProducer producer;
+    @Resource
+    private AfterCommitExecutor afterCommitExecutor;
 
     /**
      * 上传并解析简历。
@@ -130,6 +139,15 @@ public class ResumeServiceImpl implements ResumeService {
 
             resumeMapper.insert(resume1);
             log.info("简历保存成功: id={}, 文件={}", resume1.getId(), originalName);
+
+            // 事务提交后异步预生成向量（versionId=null 表示主简历）
+            // OCR 低置信度（REVIEW）的简历跳过：正文还要人工核对，生成了也会失效，
+            // 白白浪费一次 embedding API 调用
+            if (!"REVIEW".equals(resume1.getOcrStatus())) {
+                Resume saved = resume1;
+                afterCommitExecutor.execute(() -> producer.publish(
+                        saved.getId(), null, saved.getUserId(), saved.getRawText()));
+            }
 
             fillOcrBlocks(resume1);
 
@@ -283,10 +301,17 @@ public class ResumeServiceImpl implements ResumeService {
                 .build();
         resumeMapper.insert(resume);
         log.info("对话创建简历成功: id={}, userId={}", resume.getId(), userId);
+
+        // 事务提交后异步预生成向量（versionId=null 表示主简历）
+        Resume saved = resume;
+        afterCommitExecutor.execute(() -> producer.publish(
+                saved.getId(), null, saved.getUserId(), saved.getRawText()));
+
         return resume;
 
     }
 
+    @Transactional
     @Override
     public Resume updateText(Long resumeId, String rawText) {
         if (rawText == null  || rawText.isBlank()) {
@@ -302,6 +327,11 @@ public class ResumeServiceImpl implements ResumeService {
 
         // 正文已变更，清理诊断/优化/匹配缓存，避免返回过期结果
         evictResumeCaches(resumeId);
+
+        afterCommitExecutor.execute(() -> producer.publish(
+                resume.getId(), null, resume.getUserId(), resume.getRawText()
+        ));
+
         fillOcrBlocks(resume);
         return resume;
     }
@@ -367,4 +397,5 @@ public class ResumeServiceImpl implements ResumeService {
         }
         return r;
     }
+
 }

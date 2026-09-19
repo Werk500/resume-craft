@@ -24,6 +24,16 @@ x-backend-env: &backend-env
   AI_API_KEY: ${AI_API_KEY:-sk-placeholder}
   AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
   AI_MODEL: ${AI_MODEL:-deepseek-chat}
+  # 向量库（宿主机 PostgreSQL + pgvector）
+  EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+  EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-v3}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+  PG_URL: ${PG_URL:-jdbc:postgresql://host.docker.internal:5432/resume_craft_vector}
+  PG_USER: ${PG_USER:-postgres}
+  PG_PASSWORD: ${PG_PASSWORD:-123456}
+  # 消息队列（宿主机 Kafka）
+  KAFKA_SERVERS: ${KAFKA_SERVERS:-host.docker.internal:9092}
   JWT_SECRET: ${JWT_SECRET:-dev-only-secret-key-change-before-prod-32bytes}
   INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
 

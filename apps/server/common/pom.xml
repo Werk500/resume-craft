@@ -81,5 +81,17 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
+        <!--
+          Kafka：topic 声明（KafkaTopicConfig）与消息体（EmbeddingTaskMessage）放在 common，
+          供 resume（生产者）与 job-match（消费者）共享。
+
+          本依赖为 compile 作用域，会传递给所有业务服务。这不影响 auth/application 等
+          未配置 Kafka 的服务：KafkaAdmin 仅在存在 spring.kafka.bootstrap-servers
+          或 NewTopic bean 时才生效，这些服务两者都没有，因此不会尝试连 Kafka。
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
     </dependencies>
 </project>

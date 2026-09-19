@@ -6,6 +6,15 @@ server:
   port: 8082
 
 spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: 1              # leader 写入即确认，开发环境够用
+      retries: 3
+      properties:
+        max.block.ms: 3000 # Kafka 不可用时最多阻塞 3 秒，避免拖慢上传接口
   application:
     name: resume-service
   datasource:

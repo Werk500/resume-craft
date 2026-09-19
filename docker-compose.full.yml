@@ -43,6 +43,46 @@ services:
       JVM_XMS: 256m
       JVM_XMX: 512m
 
+  # 向量库：pgvector 官方镜像已内置 vector 扩展
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: resume_craft_vector
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 容器首次初始化时自动启用扩展并建表
+      - ./apps/server/db/pgvector_schema.sql:/docker-entrypoint-initdb.d/10-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_craft_vector"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Kafka（KRaft 模式，无需 ZooKeeper）
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
   auth-service:
     build:
       context: ./apps/server
@@ -62,6 +102,14 @@ services:
       AI_API_KEY: ${AI_API_KEY:-sk-placeholder}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-v3}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      PG_URL: jdbc:postgresql://postgres:5432/resume_craft_vector
+      PG_USER: postgres
+      PG_PASSWORD: "123456"
+      KAFKA_SERVERS: kafka:9092
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-key-change-before-prod-32bytes}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
     depends_on:
@@ -87,6 +135,10 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   job-match-service:
     build:
@@ -103,6 +155,10 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   application-service:
     build:
@@ -152,3 +208,5 @@ services:
 
 volumes:
   mysql-data:
+  pg-data:
+  kafka-data:

@@ -7,6 +7,7 @@ import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
+import com.resumecraft.server.mq.AfterCommitExecutor;
 import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.optimize.util.MarkdownConverter;
@@ -15,6 +16,7 @@ import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
+import com.resumecraft.server.resume.mq.EmbeddingTaskProducer;
 import com.resumecraft.server.resume.service.ResumeService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,6 +56,8 @@ public class OptimizeServiceImpl implements OptimizeService {
     private JobMapper jobMapper;
     @Resource
     private PdfGenerator pdfGenerator;
+    @Resource
+    private AfterCommitExecutor afterCommitExecutor;
 
     @Resource
     private ThreadPoolTaskExecutor aiExecutor;
@@ -59,10 +65,20 @@ public class OptimizeServiceImpl implements OptimizeService {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private ObjectMapper objectMapper;
+    @Resource
+    private EmbeddingTaskProducer producer;
 
     private static final String NULL_VALUE = "NULL";
     private static final long NULL_EXPIRE_MINUTES = 5;
 
+
+    /**
+     * AI 优化简历。
+     *
+     * @param resumeId  简历 id
+     * @param targetJob 目标岗位（可为 null/空 = 通用优化）
+     * @return 保存后的优化版本
+     */
     @Override
     public ResumeVersion optimize(Long resumeId, String targetJob) {
 
@@ -131,6 +147,12 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .build();
         resumeVersionMapper.insert(version);
         log.info("优化版本已保存: id={}, resumeId={}", version.getId(), resumeId);
+
+        // 优化版本也要预生成向量：否则用户优化完立刻点匹配，
+        // 又会触发一次 200~500ms 的同步 embedding，预生成就白做了
+        afterCommitExecutor.execute(() -> producer.publish(
+                resumeId, version.getId(), resume.getUserId(), version.getOptimizedContent()));
+
         // 5. 写入缓存（有效期 1 小时）
         try {
             //将 Java 对象序列化为 JSON 字符串，以便存入 Redis。
@@ -311,6 +333,9 @@ public class OptimizeServiceImpl implements OptimizeService {
         log.info("定向优化版本已保存: versionId={}, resumeId={}, userId={}, targetJob={}",
                 version.getId(), resumeId, resume.getUserId(), job.getTitle());
 
+        afterCommitExecutor.execute(() -> producer.publish(
+                resumeId, version.getId(), version.getUserId(), version.getOptimizedContent()));
+
         //9.组装响应
         TargetedOptimizeResponse response = TargetedOptimizeResponse.builder()
                 .versionId(version.getId())
@@ -425,6 +450,9 @@ public class OptimizeServiceImpl implements OptimizeService {
         log.info("保存精修版本成功，resumeId: {}, versionId: {}, versionName: {}",
                 resumeId, version.getId(), version.getVersionName());
 
+        afterCommitExecutor.execute(() -> producer.publish(
+                resumeId, version.getId(), userId, version.getOptimizedContent()));
+
         return version;
 
     }
@@ -487,4 +515,5 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .replaceAll("```", "")
                 .trim();
     }
+
 }

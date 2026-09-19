@@ -6,6 +6,13 @@ server:
   port: 8083
 
 spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: job-match-embedding-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 10
   application:
     name: job-match-service
   datasource:
@@ -65,6 +72,9 @@ mybatis-plus:
       id-type: auto
 
 app:
+  kafka:
+    consumer:
+      concurrency: 3     # 与 topic 分区数一致
   ai:
     mock: false
     timeout:
