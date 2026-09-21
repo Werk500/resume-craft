@@ -31,6 +31,21 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
+        <!--
+          Nacos 配置中心。
+
+          注意：gateway 模块刻意不依赖 common（common 会传递引入 spring-webmvc /
+          mybatis-plus 等 Servlet 栈依赖，与 WebFlux 网关冲突），
+          因此无法继承 common 中的 nacos-config 依赖，必须在此单独声明。
+
+          缺失时的症状：application.yml 里配了 spring.config.import: optional:nacos:xxx.yml，
+          但日志中完全没有 "Nacos Config" 记录，依赖远程配置的 Bean 报
+          Could not resolve placeholder（例如 app.jwt.secret）。
+        -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
         <!-- 客户端负载均衡（lb:// 服务名路由必需） -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>

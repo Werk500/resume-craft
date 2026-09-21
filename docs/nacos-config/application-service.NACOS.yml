@@ -1,0 +1,59 @@
+# ============================================================
+# Nacos service config -- PUBLISH THIS CONTENT TO NACOS
+#
+# Data ID : application-service.yml
+# Group   : DEFAULT_GROUP
+# Format  : YAML
+#
+# WARNING: keep ASCII-only. nacos-client 2.4.2 reads remote config
+# with a non-UTF-8 charset; non-ASCII characters cause:
+#   YAMLException: MalformedInputException: Input length = 1
+# ============================================================
+
+spring:
+  # ---------- MySQL ----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+
+  sql:
+    init:
+      mode: always
+
+  # ---------- Spring AI is on the classpath via the common module ----------
+  # This service does not use AI. All models must be disabled, otherwise the
+  # auto-configuration demands an API key and startup fails.
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+
+  # ---------- Feign (calls resume-service for version content) ----------
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 3000
+            readTimeout: 30000
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+  internal-token: ${INTERNAL_TOKEN:dev-internal-token}

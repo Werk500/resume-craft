@@ -1,10 +1,9 @@
 package com.resumecraft.server.job.mq;
 
-import com.resumecraft.server.common.feign.ResumeClient;
+import com.resumecraft.server.job.gateway.ResumeServiceGateway;
 import com.resumecraft.server.mq.EmbeddingTaskMessage;
 import com.resumecraft.server.mq.KafkaTopicConfig;
 import com.resumecraft.server.job.vector.VectorStore;
-import feign.FeignException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -32,7 +31,7 @@ public class EmbeddingTaskConsumer {
     @Resource
     private VectorStore vectorStore;
     @Resource
-    private ResumeClient resumeClient;
+    private ResumeServiceGateway resumeServiceGateway;
 
     @KafkaListener(
             topics = KafkaTopicConfig.TOPIC_EMBEDDING_TASK,
@@ -49,27 +48,10 @@ public class EmbeddingTaskConsumer {
             return;
         }
 
-        if(message.getVersionId() == null){
-            try {
-                resumeClient.getResume(message.getResumeId());
-            }catch (FeignException e){
-                // 注意是 < 500：4xx 才是永久性错误（简历已删除 / REVIEW 待核对），
-                // 500 属于服务端临时故障，应该抛出去走重试
-                if (e.status() >= 400 && e.status() < 500) {
-                    // 4xx = 永久性错误，重试无意义，直接 ACK 丢弃：
-                    //   - 简历已删除（避免写回孤儿向量）
-                    //   - 简历处于 REVIEW 状态（正文待人工核对，不应生成向量）
-                    log.info("简历不可用，跳过向量生成: resumeId={}, status={}",
-                            message.getResumeId(), e.status());
-                    ack.acknowledge();
-                    return;
-                }
-
-                // 5xx 等服务端错误视为临时故障，抛出去走重试
-                log.warn("校验简历存在性失败，将重试: resumeId={}, status={}, err={}",
-                        message.getResumeId(), e.status(), e.getMessage());
-                throw e;
-            }
+        if(message.getVersionId() ==null && !resumeServiceGateway.isAvailable(message.getResumeId())){
+            log.info("简历不可用，跳过向量生成: resumeId={}", message.getResumeId());
+            ack.acknowledge();
+            return;
         }
 
         try {
@@ -99,10 +81,12 @@ public class EmbeddingTaskConsumer {
             // 业务成功后手动提交 offset；抛异常时不提交，交由错误处理器重试
             ack.acknowledge();
 
+            boolean alive = resumeServiceGateway.isAvailable(message.getResumeId());
+
             // 写入后复检：关闭"消费前校验通过 → 写入向量"之间的竞态窗口。
             // 场景：消费者校验时简历还在，随后用户删除简历（级联清理跑完时向量尚不存在），
             // 消费者才把向量写进去 → 产生孤儿向量。这里发现简历已删就立即回滚。
-            if (message.getVersionId() == null && !isResumeAlive(message.getResumeId())) {
+            if (message.getVersionId() == null && !alive) {
                 int rolled = vectorStore.deleteResumeVectors(message.getResumeId());
                 log.info("写入后发现简历已删除，回滚向量: resumeId={}, deleted={}",
                         message.getResumeId(), rolled);
@@ -123,27 +107,4 @@ public class EmbeddingTaskConsumer {
         }
     }
 
-    /**
-     * 判断简历是否仍然存在。
-     *
-     * <p>用于写入后复检：简历已删除时返回 false，调用方据此回滚刚写入的向量。
-     * 这里刻意不再抛异常——复检是"尽力而为"的补偿动作，
-     * 失败时不应触发消息重试（重试会重新生成向量，得不偿失）。
-     *
-     * @return true=简历存在；false=已删除或状态不可用
-     */
-    private boolean isResumeAlive(Long resumeId) {
-        try {
-            resumeClient.getResume(resumeId);
-            return true;
-        } catch (FeignException e) {
-            // 4xx 表示简历不存在或处于 REVIEW 状态，都视为不可用
-            return false;
-        } catch (Exception e) {
-            // 网络抖动等服务端问题：无法确认，保守地认为"还活着"，
-            // 避免因为一次网络抖动就误删刚生成的有效向量
-            log.warn("复检简历状态失败，保守跳过回滚: resumeId={}, err={}", resumeId, e.getMessage());
-            return true;
-        }
-    }
 }

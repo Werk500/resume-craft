@@ -1,0 +1,42 @@
+# ============================================================
+# Nacos service config -- PUBLISH THIS CONTENT TO NACOS
+#
+# Data ID : gateway.yml
+# Group   : DEFAULT_GROUP
+# Format  : YAML
+#
+# WARNING: keep ASCII-only. nacos-client 2.4.2 reads remote config
+# with a non-UTF-8 charset; non-ASCII characters cause:
+#   YAMLException: MalformedInputException: Input length = 1
+#
+# NOTE: routing rules deliberately stay in the local application.yml.
+# Routes are a code-level contract (they must match the services actually
+# running); changing them should go through code review and release, not
+# through a runtime config push. Only environment-dependent values live here.
+# ============================================================
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+
+spring:
+  # ---------- Redis: used by the rate limiter (token bucket) ----------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:123456}
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                # token replenish rate per second
+                redis-rate-limiter.replenishRate: 20
+                # burst capacity
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userIpKeyResolver}"

@@ -1,0 +1,45 @@
+# ============================================================
+# Nacos shared config -- PUBLISH THIS CONTENT TO NACOS
+#
+# Data ID : common.yml
+# Group   : COMMON          (NOT the default DEFAULT_GROUP)
+# Format  : YAML
+#
+# WARNING -- IMPORTANT
+#   Keep this content ASCII-only. nacos-client 2.4.2 reads remote
+#   config with a non-UTF-8 charset, so non-ASCII (e.g. Chinese)
+#   characters break YAML parsing with:
+#     YAMLException: MalformedInputException: Input length = 1
+#   Put explanatory comments in the project docs instead.
+#
+# Referenced by each service's application.yml:
+#   spring.config.import:
+#     - optional:nacos:common.yml?group=COMMON
+# ============================================================
+
+logging:
+  pattern:
+    # traceId in the log pattern comes from the gateway global filter (MDC)
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
+  level:
+    com.resumecraft: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # circuitbreakers exposes circuit breaker state (CLOSED / OPEN / HALF_OPEN)
+        include: health,info,prometheus,circuitbreakers
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+# Verification marker: this key does not exist in local application.yml,
+# so its presence proves the remote config was loaded.
+#   Invoke-RestMethod http://localhost:8081/actuator/info
+# Change the value below to nacos-common-v2 and republish to test hot reload.
+info:
+  configSource: nacos-common

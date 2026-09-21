@@ -9,15 +9,15 @@ import com.resumecraft.server.common.ApiResponse;
 import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.dto.ResumeBriefDTO;
 import com.resumecraft.server.common.dto.ResumeVersionDTO;
-import com.resumecraft.server.common.feign.ResumeClient;
+import com.resumecraft.server.common.exception.ServiceUnavailableException;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.domain.MatchResultMapper;
+import com.resumecraft.server.job.gateway.ResumeServiceGateway;
 import com.resumecraft.server.job.match.MatchEngine;
 import com.resumecraft.server.job.match.MatchContext;
 import com.resumecraft.server.job.service.MatchService;
-import feign.FeignException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -28,16 +28,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
 @Slf4j
 public class MatchServiceImpl implements MatchService {
 
-
     @Resource
-    private ResumeClient resumeClient;
+    private ResumeServiceGateway resumeServiceGateway;
     @Resource
     private JobMapper jobMapper;
     @Resource
@@ -89,9 +87,12 @@ public class MatchServiceImpl implements MatchService {
         String resumeText;
         Long resumeUserId;
         if (versionId != null) {
-            ResumeVersionDTO version = callResume(() -> resumeClient.getVersion(versionId));
+
+            ResumeVersionDTO version = resumeServiceGateway.getVersion(versionId);
             if (version == null) {
-                throw new RuntimeException("版本不存在，versionId: " + versionId);
+                // 网关返回 null 表示熔断降级（resume 服务不可用），而非"版本不存在"。
+                // 版本确实不存在时，resume 服务会返回 4xx，网关翻译成 IllegalArgumentException 抛出。
+                throw new ServiceUnavailableException("简历服务暂时不可用，请稍后重试");
             }
             if (!resumeId.equals(version.getResumeId())) {
                 throw new RuntimeException("版本不属于该简历");
@@ -100,9 +101,10 @@ public class MatchServiceImpl implements MatchService {
             resumeUserId = version.getUserId();
         }
         else {
-            ResumeBriefDTO brief = callResume(() -> resumeClient.getResume(resumeId));
+            ResumeBriefDTO brief = resumeServiceGateway.getResume(resumeId);
             if (brief == null) {
-                throw new IllegalArgumentException("简历不存在，resumeId: " + resumeId);
+                // 同上：null = 熔断降级（服务不可用），映射为 503 而非 400
+                throw new ServiceUnavailableException("简历服务暂时不可用，请稍后重试");
             }
             resumeText =buildResumeText(brief);
             resumeUserId = brief.getUserId();
@@ -204,50 +206,4 @@ public class MatchServiceImpl implements MatchService {
 
     }
 
-
-//    //安全地从 JSON 对象中获取 Double 类型的值。
-//    private Double getDouble(JsonNode json, String key) {
-//        return json.has(key)//检查 JSON 中是否存在该字段
-//                && !json.get(key).isNull() ? json.get(key).asDouble() : null;//检查该字段的值是否为 null,如果字段存在且不为 null → 调用 asDouble() 返回数值
-//    }
-//
-//    //安全地从 JSON 对象中获取 String 类型的值。
-//    private String getString(JsonNode json, String key) {
-//        return json.has(key) && !json.get(key).isNull() ? json.get(key).asText() : null;
-//    }
-
-    /**
-     * 包装 Feign 调用，把远端 4xx 错误转成本地业务异常。
-     *
-     * <p>Feign 默认会把 4xx 抛成 FeignException，message 是通用描述；
-     * 这里解析响应体里的 message 字段，重新抛成 IllegalArgumentException，
-     * 让 GlobalExceptionHandler 能转成 400 + 原始 message 返回前端。
-     */
-    private <T> T callResume(Supplier<T> supplier) {
-        try {
-            return supplier.get();
-        } catch (FeignException e) {
-            String message = extractMessage(e);
-            if (e.status() >= 400 && e.status() < 500) {
-                // 业务拒绝：交给 GlobalExceptionHandler 转成 400 + message
-                throw new IllegalArgumentException(message);
-            }
-            throw new RuntimeException("简历服务暂时不可用，请稍后重试", e);
-        }
-    }
-
-    /**
-     * 从 FeignException 的响应体里提取 message。
-     * <p>响应体形如 {"code":400,"message":"...","data":null}。
-     * 解析失败时返回兜底文案。
-     */
-    private String extractMessage(FeignException e) {
-        try {
-            JsonNode node = objectMapper.readTree(e.contentUTF8());
-            String msg = node.path("message").asText(null);
-            if (msg != null && !msg.isBlank()) return msg;
-        } catch (Exception ignored) {
-        }
-        return "简历当前状态不允许匹配，请先核对解析内容";
-    }
 }

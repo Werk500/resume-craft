@@ -1,0 +1,52 @@
+# ============================================================
+# Nacos service-specific config -- PUBLISH THIS CONTENT TO NACOS
+#
+# Data ID : auth-service.yml
+# Group   : DEFAULT_GROUP
+# Format  : YAML
+#
+# WARNING -- IMPORTANT
+#   Keep this content ASCII-only (see common.NACOS.yml for the reason).
+#
+# Design notes kept out of the published content:
+#   - Spring AI is on the classpath via the common module, but auth
+#     does not use it. All AI models must be disabled, otherwise the
+#     Spring AI auto-configuration demands an API key and fails startup.
+#   - Secrets are never stored in Nacos. Use ${ENV_VAR:default}
+#     placeholders; real values come from environment variables.
+# ============================================================
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+
+  sql:
+    init:
+      mode: always
+
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+  internal-token: ${INTERNAL_TOKEN:dev-internal-token}

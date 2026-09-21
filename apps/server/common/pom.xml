@@ -93,5 +93,27 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        <!--
+          AOP 支持：Resilience4j 的 @CircuitBreaker 依赖 AspectJ 织入才能生效。
+
+          为什么必须显式引入：resilience4j-spring6 里虽然定义了标注 @Aspect 的
+          CircuitBreakerAspect，但 Spring 只有检测到 AspectJ 织入器（aspectjweaver）
+          时才启用 AOP 自动代理。缺少本依赖时，@CircuitBreaker 会被静默忽略——
+          注解合法、服务能启动、熔断器也注册了，但调用完全不被拦截。
+          这是最难排查的一类问题：没有任何报错。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+        <!--
+  Nacos 配置中心。
+  与 nacos-discovery 分开：discovery 负责"服务在哪"，config 负责"服务怎么配"。
+  版本由 spring-cloud-alibaba-dependencies BOM 管理（2025.0.0.0）。
+-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
     </dependencies>
 </project>

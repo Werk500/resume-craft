@@ -8,61 +8,20 @@ server:
 spring:
   application:
     name: application-service
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:123456}
-  sql:
-    init:
-      mode: always
-  # common 传递了 spring-ai，本服务不用 AI → 全部禁用（否则启动要求 API key）
-  ai:
-    model:
-      chat: none
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  config:
+    import:
+      # optional 前缀：Nacos 不可用时服务照常启动，配置中心不应成为单点故障
+      - optional:nacos:${spring.application.name}.yml
+      - optional:nacos:common.yml?group=COMMON
   cloud:
-    openfeign:
-      client:
-        config:
-          default:
-            connectTimeout: 3000
-            readTimeout: 30000
     nacos:
+      # server-addr 必须在根级：discovery 与 config 共用
+      # 只写在 discovery 下会导致 config 模块的 serverAddr 为 null，拉取配置失败
+      server-addr: ${NACOS_ADDR:localhost:8848}
       discovery:
-        server-addr: ${NACOS_ADDR:localhost:8848}
-
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    banner: false
-    db-config:
-      id-type: auto
-
-app:
-  jwt:
-    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
-    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
-    # 内部服务调用 Token（用于 Feign 调用其他微服务的 /internal/** 接口）
-  internal-token: ${INTERNAL_TOKEN:dev-internal-token}
-
-logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
-  level:
-    com.resumecraft: INFO
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-  metrics:
-    tags:
-      application: ${spring.application.name}
+        enabled: true
+      config:
+        file-extension: yml
+        refresh-enabled: true

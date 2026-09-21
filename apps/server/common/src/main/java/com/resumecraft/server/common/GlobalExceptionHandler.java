@@ -1,5 +1,6 @@
 package com.resumecraft.server.common;
 
+import com.resumecraft.server.common.exception.ServiceUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
@@ -37,6 +38,20 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException e) {
         return ApiResponse.error(400, e.getMessage());
+    }
+
+    /**
+     * 处理下游服务不可用（熔断降级）。
+     *
+     * <p>必须声明在 {@code Exception} 兜底分支之外并由 Spring 按精确类型优先匹配——
+     * 否则降级提示会被兜底分支替换成泛化的"服务器内部错误"，
+     * 用户无法得知是"参数问题"还是"服务暂时抖动"。
+     */
+    @ExceptionHandler(ServiceUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ApiResponse<Void> handleServiceUnavailable(ServiceUnavailableException e) {
+        log.warn("下游服务不可用（熔断降级）: {}", e.getMessage());
+        return ApiResponse.error(503, e.getMessage());
     }
 
     /**

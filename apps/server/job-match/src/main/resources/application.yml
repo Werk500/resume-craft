@@ -6,117 +6,22 @@ server:
   port: 8083
 
 spring:
-  kafka:
-    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
-    consumer:
-      group-id: job-match-embedding-group
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-      max-poll-records: 10
   application:
     name: job-match-service
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:123456}
-  sql:
-    init:
-      mode: always
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: 6379
-      password: ${REDIS_PASSWORD:123456}
-      timeout: 5000ms
-  ai:
-    model:
-      chat: openai
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
-    openai:
-      api-key: ${AI_API_KEY:sk-placeholder}
-      base-url: ${AI_BASE_URL:https://api.deepseek.com}
-      chat:
-        options:
-          model: ${AI_MODEL:deepseek-chat}
-          temperature: 0.3
-    mock: false
-    timeout:
-        chat-seconds: 30      # 匹配语义评分：超时会降级为 50 分，不宜过长
-        stream-seconds: 60
-        ocr-seconds: 120
-    retry:
-        max-attempts: 1       # 匹配是轻量调用，不重试
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  config:
+    import:
+      # optional 前缀：Nacos 不可用时服务照常启动，配置中心不应成为单点故障
+      - optional:nacos:${spring.application.name}.yml
+      - optional:nacos:common.yml?group=COMMON
   cloud:
-    openfeign:
-      client:
-        config:
-          default:
-            connectTimeout: 3000
-            readTimeout: 30000
     nacos:
+      # server-addr 必须在根级：discovery 与 config 共用
+      # 只写在 discovery 下会导致 config 模块的 serverAddr 为 null，拉取配置失败
+      server-addr: ${NACOS_ADDR:localhost:8848}
       discovery:
-        server-addr: ${NACOS_ADDR:localhost:8848}
-
-mybatis-plus:
-  configuration:
-    map-underscore-to-camel-case: true
-  global-config:
-    banner: false
-    db-config:
-      id-type: auto
-
-app:
-  kafka:
-    consumer:
-      concurrency: 3     # 与 topic 分区数一致
-  ai:
-    mock: false
-    timeout:
-      chat-seconds: 30      # 匹配语义评分：超时降级为 50 分，不宜过长
-      stream-seconds: 60
-      ocr-seconds: 120
-    retry:
-      max-attempts: 1       # 匹配是轻量调用，不重试
-  jwt:
-    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
-    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
-    # 内部服务调用 Token（用于 Feign 调用其他微服务的 /internal/** 接口）
-  internal-token: ${INTERNAL_TOKEN:dev-internal-token}
-  embedding:
-    enabled: ${EMBEDDING_ENABLED:true}
-    api-key: ${EMBEDDING_API_KEY:}
-    base-url: ${EMBEDDING_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
-    model: ${EMBEDDING_MODEL:text-embedding-v3}
-    dimensions: ${EMBEDDING_DIMENSIONS:1024}
-    timeout-ms: 5000
-  vector:
-    # 降级开关：设为 false 时语义评分直接回落 AI 近似打分（验收用）
-    enabled: ${VECTOR_ENABLED:true}
-    pg:
-      url: ${PG_URL:jdbc:postgresql://localhost:5432/resume_craft_vector}
-      username: ${PG_USER:postgres}
-      password: ${PG_PASSWORD:}
-      driver-class-name: org.postgresql.Driver
-      max-pool-size: 4
-      connection-timeout-ms: 3000
-
-logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
-  level:
-    com.resumecraft: INFO
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-  metrics:
-    tags:
-      application: ${spring.application.name}
+        enabled: true
+      config:
+        file-extension: yml
+        refresh-enabled: true

@@ -64,20 +64,34 @@ public class EmbeddingTaskProducer {
         //用 resumeId 作为分区 key：同一份简历的消息落到同一分区，保证顺序
         String key = String.valueOf(message.getResumeId());
 
-        kafkaTemplate.send(KafkaTopicConfig.TOPIC_EMBEDDING_TASK,key,message)
-                .whenComplete((result,ex) -> {
-                    if (ex != null) {
-                        log.warn("embedding 任务发送失败（不影响主流程，匹配时会同步兜底）: resumeId={}, versionId={}, err={}",
-                                message.getResumeId(), message.getVersionId(), ex.getMessage());
-                        return;
-                    }
+        // 两段式异常处理是必须的，缺一不可：
+        //
+        //   1) try/catch 捕获 send() 的【同步】异常：Kafka 不可达时，
+        //      send() 会阻塞到 max.block.ms 后直接抛 KafkaException（元数据拉取失败），
+        //      这个异常不会进入 whenComplete，若不捕获会冒泡成 500 打断主流程。
+        //   2) whenComplete 处理【异步】失败：消息已交给客户端，但 broker 拒绝或超时。
+        //
+        // 只写 whenComplete 是常见误区——Kafka 完全不可用时正是走同步路径。
+        try {
+            kafkaTemplate.send(KafkaTopicConfig.TOPIC_EMBEDDING_TASK, key, message)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.warn("embedding 任务发送失败（不影响主流程，匹配时会同步兜底）: resumeId={}, versionId={}, err={}",
+                                    message.getResumeId(), message.getVersionId(), ex.getMessage());
+                            return;
+                        }
 
-                    // 记录 partition + offset，便于日后精确定位这条消息
-                    var meta = result.getRecordMetadata();
-                    log.info("embedding 任务已投递: topic={}, partition={}, offset={}, resumeId={}, versionId={}",
-                            meta.topic(), meta.partition(), meta.offset(),
-                            message.getResumeId(), message.getVersionId());
-                });
+                        // 记录 partition + offset，便于日后精确定位这条消息
+                        var meta = result.getRecordMetadata();
+                        log.info("embedding 任务已投递: topic={}, partition={}, offset={}, resumeId={}, versionId={}",
+                                meta.topic(), meta.partition(), meta.offset(),
+                                message.getResumeId(), message.getVersionId());
+                    });
+        } catch (Exception e) {
+            log.warn("embedding 任务发送失败（同步异常，不影响主流程，匹配时会同步兜底）: "
+                            + "resumeId={}, versionId={}, err={}",
+                    message.getResumeId(), message.getVersionId(), e.getMessage());
+        }
     }
 
     private String sha256(String text) {

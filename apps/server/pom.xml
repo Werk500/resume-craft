@@ -43,8 +43,27 @@
         <jjwt.version>0.12.5</jjwt.version>
         <springdoc.version>2.8.13</springdoc.version>
         <postgresql.version>42.7.7</postgresql.version>
+        <!--
+          Spring Cloud CircuitBreaker（Resilience4j）版本。
+          理论上 spring-cloud-dependencies:2025.0.0 已导入 spring-cloud-circuitbreaker-dependencies:3.3.0，
+          但该 BOM 内用 ${project.version} 声明版本，Maven 在导入 BOM 场景下对这类插值解析不稳定，
+          会导致 "dependency.version is missing"。这里显式指定以避免该问题。
+        -->
+        <spring-cloud-circuitbreaker.version>3.3.0</spring-cloud-circuitbreaker.version>
         <!-- 与 Spring Boot 3.5.16 官方管理的版本保持一致（3.2.x 与 Boot 3.5 不兼容） -->
         <spring-kafka.version>3.3.16</spring-kafka.version>
+        <!--
+          Nacos 客户端版本。
+
+          ⚠️ 必须显式指定 2.x：spring-cloud-alibaba-dependencies:2025.0.0.0 默认带的是
+          nacos-client 3.0.3，与本机运行的 Nacos Server 2.4.3 协议不兼容。
+          症状很有迷惑性——客户端能连上服务端、也能发现配置存在，但拉取到的内容为空：
+             WARN NacosConfigDataLoader : config[dataId=xxx.yml, group=xxx] is empty
+          随后依赖远程配置的 Bean 创建失败（如 JwtUtil 拿不到 app.jwt.secret）。
+
+          服务端升级到 3.x 亦可解决，但需迁移数据库、改动较大，客户端降级成本更低。
+        -->
+        <nacos-client.version>2.4.2</nacos-client.version>
     </properties>
 
     <dependencyManagement>
@@ -140,6 +159,17 @@
                 <groupId>org.springframework.kafka</groupId>
                 <artifactId>spring-kafka</artifactId>
                 <version>${spring-kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+                <version>${spring-cloud-circuitbreaker.version}</version>
+            </dependency>
+            <!-- 覆盖 Spring Cloud Alibaba 默认传递的 nacos-client 3.0.3（见 properties 中的说明） -->
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-client</artifactId>
+                <version>${nacos-client.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

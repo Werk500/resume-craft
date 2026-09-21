@@ -1,0 +1,149 @@
+# ============================================================
+# Nacos service config -- PUBLISH THIS CONTENT TO NACOS
+#
+# Data ID : job-match-service.yml
+# Group   : DEFAULT_GROUP
+# Format  : YAML
+#
+# WARNING: keep ASCII-only. nacos-client 2.4.2 reads remote config
+# with a non-UTF-8 charset; non-ASCII characters cause:
+#   YAMLException: MalformedInputException: Input length = 1
+# ============================================================
+
+spring:
+  # ---------- MySQL ----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/resume_craft?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+
+  sql:
+    init:
+      mode: always
+
+  # ---------- Redis ----------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:123456}
+      timeout: 5000ms
+
+  # ---------- Spring AI (chat for keyword extraction + semantic scoring) ----------
+  ai:
+    model:
+      chat: openai
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      api-key: ${AI_API_KEY:sk-placeholder}
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          temperature: 0.3
+
+  # ---------- Kafka consumer (embedding task; embedding generation is IO-bound) ----------
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: job-match-embedding-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 10
+
+  # ---------- Feign (calls resume-service) ----------
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 3000
+            readTimeout: 30000
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+app:
+  kafka:
+    consumer:
+      # must match the topic partition count (embedding-task has 3 partitions)
+      concurrency: 3
+  ai:
+    mock: false
+    timeout:
+      # semantic scoring degrades to a fixed score on timeout
+      chat-seconds: 30
+      stream-seconds: 60
+      ocr-seconds: 120
+    retry:
+      max-attempts: 1
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+  internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+
+  # ---------- Embedding (Alibaba Bailian text-embedding-v3, 1024 dims) ----------
+  # Falls back to AI-approximate scoring when the API key is absent.
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:true}
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: ${EMBEDDING_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+    model: ${EMBEDDING_MODEL:text-embedding-v3}
+    dimensions: ${EMBEDDING_DIMENSIONS:1024}
+    timeout-ms: 5000
+
+  # ---------- pgvector (second datasource, isolated from MySQL) ----------
+  vector:
+    # set false to force AI-approximate scoring (used to verify degradation)
+    enabled: ${VECTOR_ENABLED:true}
+    pg:
+      url: ${PG_URL:jdbc:postgresql://localhost:5432/resume_craft_vector}
+      username: ${PG_USER:postgres}
+      password: ${PG_PASSWORD:}
+      driver-class-name: org.postgresql.Driver
+      max-pool-size: 4
+      connection-timeout-ms: 3000
+
+# ---------- Circuit breaker around resume-service calls ----------
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        sliding-window-type: COUNT_BASED
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        # 4xx business rejections (resume missing / under review) must NOT count
+        # toward the failure rate, otherwise repeated bad requests open the breaker.
+        #
+        # Note: the ignored type is IllegalArgumentException, not
+        # feign.FeignException$FeignClientException. ResumeServiceGateway
+        # translates FeignException into IllegalArgumentException before the
+        # circuit breaker aspect observes it, so a Feign-based rule never matches.
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+    instances:
+      resumeService:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+        cancel-running-future: true
+    instances:
+      resumeService:
+        base-config: default
