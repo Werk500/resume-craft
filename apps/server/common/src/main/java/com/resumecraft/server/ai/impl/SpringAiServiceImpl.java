@@ -99,19 +99,59 @@ public class SpringAiServiceImpl implements AiService {
                 truncateLog(systemPrompt), truncateLog(userPrompt));
 
         try {
-            // Spring AI ChatClient 的 stream() 方法返回 Flux<ChatResponse>
-            // 从 ChatResponse 中提取 content 并合并为 Flux<String>
+            // 用 chatResponse() 而非 content()：前者保留每个 chunk 的 metadata，
+            // 从而能读到 token 用量（流式场景的用量通常在最后一个 chunk 上）。
+            //
+            // 计时说明：Flux 是惰性的，方法返回时流尚未开始执行，
+            // 因此用 doOnSubscribe 起表、doOnComplete / doOnError 收官。
+            // 用数组持有可变状态，因为 lambda 只能捕获 effectively final 的变量。
+//            doOnSubscribe  → 订阅时开始计时
+//            doOnNext       → 每个 chunk 记 Token
+//            map            → ChatResponse 转 String
+//            doOnNext       → 打日志
+//            timeout        → 超时控制
+//            doOnComplete   → 完成记 success
+//            doOnError      → 失败记 timeout/failure
+//            onErrorResume  → 错误降级为文本
+
+            final long[] startNanos = new long[1];
+
             return chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
                     .stream()           // 流式调用
-                    .content()          // 直接返回 Flux<String>
+                    .chatResponse()
+                    .doOnSubscribe(sub -> startNanos[0] = System.nanoTime())
+                    .doOnNext(response -> {
+                        // 每个 chunk 都尝试读取：流式响应只在最后一个 chunk 带 usage
+                        if (response.getMetadata() != null && response.getMetadata().getUsage() != null ) {
+                            Usage usage = response.getMetadata().getUsage();
+                            aiObservability.recordToken(
+                                    AiCallType.CHAT_STREAM,modelName,
+                                    usage.getPromptTokens(), usage.getCompletionTokens()
+                            );
+                        }
+                    })
+                    .mapNotNull(response -> response.getResult().getOutput().getText())
                     .doOnNext(chunk -> log.debug("收到流式片段: {}", chunk))
-                    .doOnComplete(() -> log.info("流式AI调用完成"))
-                    .doOnError(error -> log.error("流式AI调用失败", error))
                     .timeout(Duration.ofSeconds(streamTimeoutSeconds))  // 总超时控制
+                    // doOnComplete 与 doOnError 是互斥的终止信号，各记录一次
+                    // ⚠️ 不要用 doOnTerminate：它在 error 之后也会触发，会把 failure 覆盖成 success
+                    .doOnComplete(() -> {
+                        aiObservability.recordDuration(AiCallType.CHAT_STREAM,"success",
+                                Duration.ofNanos(System.nanoTime() - startNanos[0]));
+                        log.info("流式AI调用完成");
+                    })
+                    .doOnError(error -> {
+                        // Reactor 的 timeout 操作符抛出 java.util.concurrent.TimeoutException
+                        String outcome = (error instanceof java.util.concurrent.TimeoutException)
+                                ? "timeout" : "failure";
+                        aiObservability.recordDuration(AiCallType.CHAT_STREAM, outcome,
+                                Duration.ofNanos(System.nanoTime() - startNanos[0]));
+                        log.error("流式AI调用失败: {}", error.getMessage());
+                    })
                     .onErrorResume(error -> {
-                        log.error("流式AI调用出错", error);
+                        log.error("流式AI调用出错，已降级为错误提示");
                         return Flux.just("[错误] AI服务响应异常，请稍后重试");
                     });
         } catch (Exception e) {
@@ -132,12 +172,22 @@ public class SpringAiServiceImpl implements AiService {
                 ocrBlockSystem,
                 "<image bytes, length=" + imageBytes.length + ">",
                 () -> CompletableFuture.supplyAsync(() ->
-                                chatClient.prompt()
-                                        .system(ocrBlockSystem)
-                                        .user(u -> u.text("请识别这张简历图片中的文字，并按系统提示返回结构化 JSON")
-                                                .media(MimeTypeUtils.IMAGE_JPEG, new ByteArrayResource(imageBytes)))
-                                        .call()
-                                        .content(),
+                        {
+                            ChatResponse response = chatClient.prompt()
+                                    .system(ocrBlockSystem)
+                                    .user(u -> u.text("请识别这张简历图片中的文字，并按系统提示返回结构化 JSON")
+                                            .media(MimeTypeUtils.IMAGE_JPEG, new ByteArrayResource(imageBytes)))
+                                    .call()
+                                    .chatResponse();
+                            if (response.getMetadata() != null && response.getMetadata().getUsage() != null) {
+                                Usage usage = response.getMetadata().getUsage();
+                                aiObservability.recordToken(
+                                        AiCallType.OCR, modelName,
+                                        usage.getPromptTokens(), usage.getCompletionTokens());
+                            }
+
+                            return response.getResult().getOutput().getText();
+                        },
                         aiExecutor),
                 ocrTimeoutSeconds
         );
