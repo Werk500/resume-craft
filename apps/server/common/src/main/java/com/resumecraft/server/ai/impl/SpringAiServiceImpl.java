@@ -1,9 +1,13 @@
 package com.resumecraft.server.ai.impl;
 
 import com.resumecraft.server.ai.AiService;
+import com.resumecraft.server.common.metrics.AiCallType;
+import com.resumecraft.server.common.metrics.AiObservability;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ByteArrayResource;
@@ -34,6 +38,8 @@ public class SpringAiServiceImpl implements AiService {
     private ChatClient chatClient;
     @Resource
     private ThreadPoolTaskExecutor aiExecutor;
+    @Resource
+    private AiObservability aiObservability;
 
     @Value("${app.ai.timeout.chat-seconds:60}")
     private long chatTimeoutSeconds;
@@ -43,6 +49,8 @@ public class SpringAiServiceImpl implements AiService {
     private long ocrTimeoutSeconds;
     @Value("${app.ai.retry.max-attempts:2}")
     private int maxAttempts;
+    @Value("${spring.ai.openai.chat.options.model:unknown}")
+    private String modelName;
 
     public SpringAiServiceImpl() {
         log.info("===== 已启用 [Spring AI] 真实大模型 =====");
@@ -56,15 +64,25 @@ public class SpringAiServiceImpl implements AiService {
     public String chat(String systemPrompt, String userPrompt) {
 
         return executeWithRetry(
-                "chat",
+                AiCallType.CHAT,
                 systemPrompt,
                 userPrompt,
                 () -> CompletableFuture.supplyAsync(() ->
-                                chatClient.prompt()
-                                        .system(systemPrompt)
-                                        .user(userPrompt)
-                                        .call()
-                                        .content(),
+                        {
+                            ChatResponse response = chatClient.prompt()
+                                    .system(systemPrompt)
+                                    .user(userPrompt)
+                                    .call()
+                                    .chatResponse();
+                            if (response.getMetadata() != null && response.getMetadata().getUsage() != null ) {
+                                Usage usage = response.getMetadata().getUsage();
+                                aiObservability.recordToken(
+                                        AiCallType.CHAT,modelName,
+                                        usage.getPromptTokens(), usage.getCompletionTokens()
+                                );
+                            }
+                            return response.getResult().getOutput().getText();
+                        },
                         aiExecutor),
                 chatTimeoutSeconds
         );
@@ -110,7 +128,7 @@ public class SpringAiServiceImpl implements AiService {
         }
 
         return executeWithRetry(
-                "ocr",
+                AiCallType.OCR,
                 ocrBlockSystem,
                 "<image bytes, length=" + imageBytes.length + ">",
                 () -> CompletableFuture.supplyAsync(() ->
@@ -132,40 +150,49 @@ public class SpringAiServiceImpl implements AiService {
     // 每次重试之间 Thread.sleep(retryBaseBackoffMs * attempt)。
     // 全部失败再抛业务 RuntimeException。
     // ============================================================
-    private String executeWithRetry(String scene,
+    private String executeWithRetry(AiCallType callType,
                                     String systemPrompt,
                                     String userPrompt,
                                     Supplier<CompletableFuture<String>> task,
                                     long timeoutSeconds){
         RuntimeException lastFailure = null;
+        long start = System.nanoTime();
 
         for (int attempt = 0; attempt <= maxAttempts; attempt++) {
             try {
-                return task.get().get(timeoutSeconds, TimeUnit.SECONDS);
 
+                String result = task.get().get(timeoutSeconds, TimeUnit.SECONDS);
+                aiObservability.recordDuration(callType,"success",
+                        Duration.ofNanos(System.nanoTime() - start));
+                return result;
             } catch (InterruptedException e) {
                 // 中断：立刻停止，不重试（保留中断标志）
                 Thread.currentThread().interrupt();
+                // 中断也要计入指标：否则指标总量会小于实际发起量
+                aiObservability.recordDuration(callType, "interrupted",
+                        Duration.ofNanos(System.nanoTime() - start));
                 throw new RuntimeException("AI调用被中断", e);
 
             } catch (ExecutionException e) {
                 lastFailure = new RuntimeException("AI调用失败: " + rootMessage(e), e.getCause());
                 log.warn("[{}] 第 {}/{} 次调用失败（ExecutionException）：{}",
-                        scene, attempt, maxAttempts, rootMessage(e));
+                        callType.tag(), attempt, maxAttempts, rootMessage(e));
 
             } catch (TimeoutException e) {
                 lastFailure = new RuntimeException("AI服务响应超时，请稍后重试", e);
                 log.warn("[{}] 第 {}/{} 次调用超时（{} 秒）",
-                        scene, attempt, maxAttempts, timeoutSeconds);
+                        callType.tag(), attempt, maxAttempts, timeoutSeconds);
             }
 
             if (attempt == maxAttempts) {
                 break;
             }
 
+            // 重试计数：attempt 从 0 开始，指标里从 1 开始更符合直觉
+            aiObservability.recordRetry(callType, attempt + 1);
 
             long sleepMs = 300L * attempt;
-            log.info("[{}] {} ms 后进行第 {} 次重试", scene, sleepMs, attempt + 1);
+            log.info("[{}] {} ms 后进行第 {} 次重试", callType.tag(), sleepMs, attempt + 1);
             try {
                 Thread.sleep(sleepMs);
             } catch (InterruptedException ie) {
@@ -174,8 +201,11 @@ public class SpringAiServiceImpl implements AiService {
             }
         }
 
+        String outcome = (lastFailure != null && lastFailure.getCause() instanceof TimeoutException) ? "timeout" : "failure";
+
+        aiObservability.recordDuration(callType,outcome,Duration.ofNanos(System.nanoTime() - start));
         log.error("[{}] 已重试 {} 次，全部失败，systemPrompt={}, userPrompt={}",
-                scene, maxAttempts, truncateLog(systemPrompt), truncateLog(userPrompt));
+                callType.tag(), maxAttempts, truncateLog(systemPrompt), truncateLog(userPrompt));
         throw lastFailure != null
                 ? lastFailure
                 : new RuntimeException("AI调用失败，未知原因");
