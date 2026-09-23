@@ -2,6 +2,7 @@ package com.resumecraft.server.job.vector;
 
 
 import com.resumecraft.server.ai.EmbeddingService;
+import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.common.util.VectorUtils;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,8 @@ public class VectorStore {
     private EmbeddingRepository embeddingRepository;
     @Resource
     private EmbeddingService embeddingService;
+    @Resource
+    private AiObservability aiObservability;
 
     @Value("${app.vector.enabled:true}")
     private boolean vectorEnabled;
@@ -53,9 +56,11 @@ public class VectorStore {
             if (hash.equals(cachedHash)){
                 float[] cached = VectorUtils.fromPgVector(embeddingRepository.selectResumeVector(resumeId, vid));
                 if(cached != null){
+                    aiObservability.recordEmbeddingCache(true);
                     return cached;
                 }
             }
+            aiObservability.recordEmbeddingCache(false);
             //文本向量化
             float[] generated = embeddingService.embed(resumeText);
             if(generated == null){
@@ -85,10 +90,11 @@ public class VectorStore {
             if (hash.equals(cachedHash)) {
                 float[] cached = VectorUtils.fromPgVector(embeddingRepository.selectJobVector(jobId));
                 if (cached != null) {
+                    aiObservability.recordEmbeddingCache(true);
                     return cached;
                 }
             }
-
+            aiObservability.recordEmbeddingCache(false);
             float[] generated = embeddingService.embed(jobText);
             if (generated == null) {
                 return null;

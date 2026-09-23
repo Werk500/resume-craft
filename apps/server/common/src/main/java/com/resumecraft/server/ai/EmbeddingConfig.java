@@ -2,6 +2,7 @@ package com.resumecraft.server.ai;
 
 import com.resumecraft.server.ai.impl.DashScopeEmbeddingServiceImpl;
 import com.resumecraft.server.ai.impl.NoopEmbeddingServiceImpl;
+import com.resumecraft.server.common.metrics.AiObservability;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class EmbeddingConfig {
+
     @Bean
     @ConditionalOnMissingBean(EmbeddingService.class)
     public EmbeddingService embeddingService(
@@ -23,11 +25,11 @@ public class EmbeddingConfig {
             @Value("${app.embedding.base-url:https://dashscope.aliyuncs.com/compatible-mode}") String baseUrl,
             @Value("${app.embedding.model:text-embedding-v3}") String model,
             @Value("${app.embedding.dimensions:1024}") int dimensions,
-            @Value("${app.embedding.timeout-ms:5000}") int timeoutMs) {
+            @Value("${app.embedding.timeout-ms:5000}") int timeoutMs,AiObservability aiObservability) {
 
         if (!enabled || apiKey == null || apiKey.isBlank()) {
             return new NoopEmbeddingServiceImpl();
         }
-        return new DashScopeEmbeddingServiceImpl(apiKey, baseUrl, model, dimensions, timeoutMs);
+        return new DashScopeEmbeddingServiceImpl(apiKey, baseUrl, model, dimensions, timeoutMs,aiObservability);
     }
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.common.util.VectorUtils;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
@@ -36,6 +37,8 @@ public class MatchEngine {
     private AiService aiService;
     @Resource
     private VectorStore vectorStore;
+    @Resource
+    private AiObservability aiObservability;
 
 
 
@@ -292,6 +295,8 @@ public class MatchEngine {
             return vectorResult;
         }
 
+        aiObservability.recordDegradation("embedding", "ai_approx");
+
         // ---------- 第二段：AI 近似打分 ----------
         try {
             String userPrompt = PromptTemplates.semanticMatchUser(
@@ -329,6 +334,7 @@ public class MatchEngine {
 
         } catch (Exception e) {
             log.warn("AI 语义评分失败，使用默认分: {}", e.getMessage());
+            aiObservability.recordDegradation("ai_approx", "rule_fallback");
             return SemanticResult.builder()
                     .score(50)
                     .reason("语义评分服务暂时不可用，使用默认分")

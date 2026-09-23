@@ -4,6 +4,7 @@ package com.resumecraft.job.match;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
+import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.match.MatchEngine;
@@ -26,6 +27,14 @@ class MatchEngineTest {
 
     @Mock
     private AiService aiService;
+
+    /**
+     * 降级计数埋点的依赖。
+     * MatchEngine 在语义评分回落到 AI 近似 / 固定分时会调用它，
+     * 不 mock 会导致 @InjectMocks 注入 null，进而在降级分支抛 NPE。
+     */
+    @Mock
+    private AiObservability aiObservability;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();

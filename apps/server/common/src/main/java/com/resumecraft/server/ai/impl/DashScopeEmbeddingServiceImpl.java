@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.ai.EmbeddingService;
+import com.resumecraft.server.common.metrics.AiCallType;
+import com.resumecraft.server.common.metrics.AiObservability;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -34,6 +36,11 @@ public class DashScopeEmbeddingServiceImpl implements EmbeddingService {
 
     @Resource
     private ObjectMapper objectMapper;
+    /**
+     * 由构造器注入（本类在 EmbeddingConfig 中手动 new，但仍作为 @Bean 注册，
+     * Spring 会处理 @Resource 字段；这里刻意不重复标注，避免与构造器赋值混淆）。
+     */
+    private AiObservability aiObservability;
 
     private final RestClient restClient;
     private final String model;
@@ -44,10 +51,11 @@ public class DashScopeEmbeddingServiceImpl implements EmbeddingService {
                                          String baseUrl,
                                          String model,
                                          int dimensions,
-                                         int timeoutMs){
+                                         int timeoutMs,AiObservability aiObservability) {
         this.model = model;
         this.dimensions = dimensions;
         this.available = apiKey != null && !apiKey.isBlank();
+        this.aiObservability = aiObservability;
 
         //配置 HTTP 请求工厂（超时控制）
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -126,32 +134,79 @@ public class DashScopeEmbeddingServiceImpl implements EmbeddingService {
     }
 
     private List<float[]> doEmbed(List<String> strings) {
-        ArrayList<float[]> fallback = new ArrayList<>(Collections.nCopies(strings.size(), null));
 
-        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model);
-        body.put("input", strings);
-        body.put("dimensions", dimensions);
-        body.put("encoding_format", "float");
+        //Collections.nCopies(n, null)：生成一个包含 n 个 null 的列表。
+        //fallback 是一个长度和输入相同的列表，里面全是 null。
+        ArrayList<float[]> fallback = new ArrayList<>(
+                Collections.nCopies(strings.size(), null));
 
-        String raw = restClient.post()
-                .uri("/v1/embeddings")
-                .body(body)
-                .retrieve()
-                .body(String.class);
-
-        if (raw == null || raw.isBlank()) {
-            log.warn("Embedding 返回空响应, model={}", model);
-            return fallback;
-        }
+        // 计时 + 结果记录：doEmbed 有多条 return 路径，
+        // 用 try/finally 保证每个出口都被记录，不会漏埋
+        long start = System.nanoTime();
+        String outcome = "failure";   // 默认失败，成功路径再改写
 
         try {
-            return parseResponse(raw,strings.size());
+            LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+            body.put("model", model);
+            body.put("input", strings);
+            body.put("dimensions", dimensions);
+            body.put("encoding_format", "float");
+
+            String raw = restClient.post()
+                    .uri("/v1/embeddings")
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+
+            if (raw == null || raw.isBlank()) {
+                log.warn("Embedding 返回空响应, model={}", model);
+                return fallback;
+            }
+
+            try {
+                List<float[]> parsed = parseResponse(raw, strings.size());
+
+                // 百炼 OpenAI 兼容接口在响应中返回 usage.prompt_tokens，
+                // 解析出来可让 embedding 的成本与 chat 一样被统计
+                recordEmbeddingUsage(raw);
+
+                outcome = "success";
+                return parsed;
+            } catch (Exception e) {
+                // 降级语义：不抛异常，交给 MatchEngine 回落到 AI_APPROX
+                log.warn("Embedding 调用失败, model={}, inputCount={}, err={}",
+                        model, strings.size(), e.getMessage());
+                return fallback;
+            }
         } catch (Exception e) {
-            // 降级语义：不抛异常，交给 MatchEngine 回落到 AI_APPROX
-            log.warn("Embedding 调用失败, model={}, inputCount={}, err={}",
+            // 网络异常等：保持原有降级语义（返回全 null），但这里需要向上抛给调用方，
+            // 因为原实现没有捕获这一层
+            log.warn("Embedding 请求异常, model={}, inputCount={}, err={}",
                     model, strings.size(), e.getMessage());
             return fallback;
+        } finally {
+            aiObservability.recordDuration(AiCallType.EMBEDDING, outcome,
+                    Duration.ofNanos(System.nanoTime() - start));
+        }
+
+
+    }
+
+    /** 从响应中解析 token 用量并记录；解析失败静默忽略，不影响主流程 */
+    private void recordEmbeddingUsage(String raw) {
+        try {
+            JsonNode usage = objectMapper.readTree(raw).path("usage");
+
+            if(!usage.isMissingNode() && !usage.isNull()) {
+                Integer promptTokens = usage.hasNonNull("prompt_tokens")
+                        ? usage.get("prompt_tokens").asInt() : null;
+                Integer totalTokens = usage.hasNonNull("total_tokens")
+                        ? usage.get("total_tokens").asInt() : null;
+                aiObservability.recordToken(AiCallType.EMBEDDING, model,
+                        promptTokens != null ? promptTokens : totalTokens, null);
+            }
+        } catch (Exception e) {
+            log.debug("解析 embedding usage 失败（不影响主流程）: {}", e.getMessage());
         }
     }
 
