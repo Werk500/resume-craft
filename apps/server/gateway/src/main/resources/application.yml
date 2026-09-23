@@ -57,7 +57,8 @@ spring:
             - id: job-match-service
               uri: lb://job-match-service
               predicates:
-                - Path=/api/v1/job/**,/api/v1/match/**
+                # agent 对话接口也部署在 job-match-service 中，故并入本路由
+                - Path=/api/v1/job/**,/api/v1/match/**,/api/v1/agent/**
               filters:
                 - StripPrefix=0
             - id: application-service
@@ -81,4 +82,3 @@ management:
   endpoint:
     health:
       show-details: always
-

@@ -64,6 +64,7 @@
           服务端升级到 3.x 亦可解决，但需迁移数据库、改动较大，客户端降级成本更低。
         -->
         <nacos-client.version>2.4.2</nacos-client.version>
+        <langchain4j.version>1.20.0</langchain4j.version>
     </properties>
 
     <dependencyManagement>
@@ -170,6 +171,16 @@
                 <groupId>com.alibaba.nacos</groupId>
                 <artifactId>nacos-client</artifactId>
                 <version>${nacos-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-open-ai</artifactId>
+                <version>${langchain4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
