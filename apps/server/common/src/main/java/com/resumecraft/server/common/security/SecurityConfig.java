@@ -1,6 +1,7 @@
 package com.resumecraft.server.common.security;
 
 import jakarta.annotation.Resource;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -41,6 +42,10 @@ public class SecurityConfig {
                 )
                 // 授权规则：认证接口放行，业务接口要求登录（数据按用户隔离）
                 .authorizeHttpRequests(auth -> auth
+                        // SSE/异步响应的完成阶段会以 ASYNC dispatch 再过一次过滤器链，
+                        // 此时 SecurityContext 已不在，会被 /api/v1/** authenticated() 判为拒绝，
+                        // 而响应已提交无法改状态码 → 连接被直接掐断。放行 ASYNC/ERROR dispatch。
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         //放行认证相关接口（注册、登录）
                         .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                         //放行内部服务间调用接口

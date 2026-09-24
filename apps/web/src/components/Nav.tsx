@@ -7,6 +7,7 @@ import { clearAuth, getCurrentUser } from "@/lib/api";
 
 const navLinks = [
   { href: "/create", label: "AI 创建" },
+  { href: "/agent", label: "求职助手" },
   { href: "/resumes", label: "简历" },
   { href: "/jobs", label: "岗位" },
   { href: "/match", label: "匹配" },

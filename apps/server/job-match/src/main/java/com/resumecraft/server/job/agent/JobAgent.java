@@ -3,6 +3,7 @@ package com.resumecraft.server.job.agent;
 
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
+import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
 
 /**
@@ -35,4 +36,16 @@ public interface JobAgent {
             5. 如果用户的需求超出你的工具能力（例如修改简历内容），如实说明并建议使用对应功能页。
             """)
     String chat(@MemoryId String sessionId, @UserMessage String userMessage);
+
+
+    /**
+     * 流式对话。
+     *
+     * <p>返回 TokenStream 而非 String：调用方可以在流式过程中订阅
+     * 工具调用事件（beforeToolExecution）与 token 增量（onPartialResponse），
+     * 从而给用户实时反馈，而不是干等数秒。
+     *
+     * <p>注意：必须由调用方显式调用 {@code start()} 才会真正发起请求。
+     */
+    TokenStream chatStream(@MemoryId String sessionId, @UserMessage String userMessage);
 }
