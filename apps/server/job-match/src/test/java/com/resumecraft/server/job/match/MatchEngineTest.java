@@ -7,6 +7,7 @@ import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
+import com.resumecraft.server.job.match.JobKeywordProvider;
 import com.resumecraft.server.job.match.MatchEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,10 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -36,6 +40,14 @@ class MatchEngineTest {
     @Mock
     private AiObservability aiObservability;
 
+    /**
+     * 关键词抽取已从 MatchEngine 抽到 JobKeywordProvider（带 Redis 缓存），
+     * 所以这里 mock 的是 Provider 而不是 aiService 的关键词分支。
+     * 不 mock 会导致 @InjectMocks 注入 null，execute() 第一行就 NPE。
+     */
+    @Mock
+    private JobKeywordProvider jobKeywordProvider;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -52,10 +64,9 @@ class MatchEngineTest {
                 .build();
     }
 
-    /** 让 AI 关键词抽取固定返回 4 个词，语义固定 80 分 */
-    private void stubAi(String keywordsJson, String semanticJson) {
-        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
-                .thenReturn(keywordsJson);
+    /** 关键词由 Provider 固定返回，语义分由 AI 固定返回 */
+    private void stubAi(List<String> keywords, String semanticJson) {
+        when(jobKeywordProvider.keywords(any(Job.class))).thenReturn(keywords);
         when(aiService.chat(eq(PromptTemplates.SEMANTIC_MATCH_SYSTEM), anyString()))
                 .thenReturn(semanticJson);
     }
@@ -63,7 +74,7 @@ class MatchEngineTest {
     @Test
     @DisplayName("40/40/20 公式：命中 3/4 + 语义 80 + 硬性 100 → 82 分，缺失词为 Kafka")
     void shouldCalculateWeightedScore() {
-        stubAi("{\"keywords\":[\"Java\",\"Spring Boot\",\"MySQL\",\"Kafka\"]}",
+        stubAi(List.of("Java", "Spring Boot", "MySQL", "Kafka"),
                 "{\"score\":80,\"reason\":\"项目经历与岗位贴合\"}");
 
         String resume = "张三，本科，3年工作经验，熟悉 Java、Spring Boot、MySQL，负责高并发订单系统";
@@ -87,7 +98,7 @@ class MatchEngineTest {
     @Test
     @DisplayName("硬性条件不满足：总分封顶 40 且 passed=false")
     void shouldCapScoreWhenHardRequirementFailed() {
-        stubAi("{\"keywords\":[\"Java\"]}", "{\"score\":90,\"reason\":\"ok\"}");
+        stubAi(List.of("Java"), "{\"score\":90,\"reason\":\"ok\"}");
 
         // JD 要求硕士，简历只有本科 → 学历不达标
         MatchResult result = matchEngine.execute("张三，本科，熟悉 Java", job("硕士及以上学历"));
@@ -102,8 +113,7 @@ class MatchEngineTest {
     @Test
     @DisplayName("语义 AI 超时/失败 → 降级 50 分而不是抛异常")
     void shouldFallbackSemanticScoreWhenAiFails() {
-        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
-                .thenReturn("{\"keywords\":[\"Java\"]}");
+        when(jobKeywordProvider.keywords(any(Job.class))).thenReturn(List.of("Java"));
         when(aiService.chat(eq(PromptTemplates.SEMANTIC_MATCH_SYSTEM), anyString()))
                 .thenThrow(new RuntimeException("AI 超时"));
 
