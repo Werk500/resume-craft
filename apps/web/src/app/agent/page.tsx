@@ -68,9 +68,10 @@ export default function AgentPage() {
     if (event.type === "start") {
       if (event.sessionId) setSessionId(event.sessionId);
     } else if (event.type === "tool") {
-      // 工具调用「那一轮」模型也会吐字（例如英文的 I'll search for...），
-      // 那是它内部决定调什么工具时的自言自语，不属于面向用户的答案。
-      // 同步接口不会返回这段，流式必须在这里丢掉，否则会和最终答案粘成一句话。
+      // 后端已在「第一个工具执行前」把工具轮的 token 拦掉了（那是模型决定调
+      // 什么工具时的自言自语，不是给用户看的答案）。这里再清一次是兜底：
+      // 多次工具调用的场景下，第二轮的前言仍可能先于第二个 tool 帧到达，
+      // 不清掉就会和最终答案粘成一句话。
       textRef.current = "";
       setStreamingText("");
       usedToolsRef.current = true;
