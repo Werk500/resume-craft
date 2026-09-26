@@ -2,6 +2,7 @@ package com.resumecraft.server.job.controller;
 
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.dto.MatchBodyRequest;
 import com.resumecraft.server.job.service.MatchService;
 import jakarta.annotation.Resource;
@@ -29,7 +30,7 @@ public class MatchController {
     public ApiResponse<MatchResult> matchByPath(@PathVariable Long resumeId, @PathVariable Long jobId) {
         log.info("收到人岗匹配请求（路径参数），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId);
+        return matchService.match(AuthContext.getUserId(),resumeId, jobId);
 
     }
 
@@ -44,7 +45,7 @@ public class MatchController {
                                                  @RequestParam Long jobId) {
         log.info("收到人岗匹配请求（请求参数），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId);
+        return matchService.match(AuthContext.getUserId(),resumeId, jobId);
     }
 
     /**
@@ -65,7 +66,7 @@ public class MatchController {
 
         log.info("收到人岗匹配请求（JSON Body），resumeId: {}, jobId: {}", resumeId, jobId);
 
-        return matchService.match(resumeId, jobId, versionId, equals);
+        return matchService.match(AuthContext.getUserId(),resumeId, jobId, versionId, equals);
     }
 
 

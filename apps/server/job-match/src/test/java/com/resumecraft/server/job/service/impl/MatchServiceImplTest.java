@@ -55,6 +55,7 @@ class MatchServiceImplTest {
 
     private static final Long RESUME_ID = 1001L;
     private static final Long JOB_ID = 2001L;
+    private static final Long MATCH_ID = 16L;
 
     @BeforeEach
     void setUp() {
@@ -86,7 +87,7 @@ class MatchServiceImplTest {
         when(matchEngine.execute(anyString(), any(Job.class), any(MatchContext.class)))
                 .thenReturn(engineResult);
 
-        var response = matchService.match(RESUME_ID, JOB_ID);
+        var response = matchService.match(MATCH_ID,RESUME_ID, JOB_ID);
 
         assertThat(response.getCode()).isEqualTo(200);
         assertThat(response.getData().getOverallScore()).isEqualTo(82.0);
@@ -99,7 +100,7 @@ class MatchServiceImplTest {
         // 必须映射为 500 而不是 400
         when(resumeServiceGateway.getResume(RESUME_ID)).thenReturn(null);
 
-        assertThatThrownBy(() -> matchService.match(RESUME_ID, JOB_ID))
+        assertThatThrownBy(() -> matchService.match(MATCH_ID,RESUME_ID, JOB_ID))
                 // 必须用专门的 ServiceUnavailableException（映射 503），
                 // 用 RuntimeeException 会被全局兜底分支吞掉 message，前端只看到"服务器内部错误"
                 .isInstanceOf(ServiceUnavailableException.class)
@@ -112,8 +113,19 @@ class MatchServiceImplTest {
     void shouldFailFastWhenJobNotFound() {
         when(jobMapper.selectById(JOB_ID)).thenReturn(null);
 
-        assertThatThrownBy(() -> matchService.match(RESUME_ID, JOB_ID))
+        assertThatThrownBy(() -> matchService.match(MATCH_ID,RESUME_ID, JOB_ID))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("岗位不存在");
+    }
+
+    @Test
+    @DisplayName("简历不属于当前用户 → 抛「不存在」，不泄露资源是否存在")
+    void shouldRejectWhenResumeNotOwned() {
+        when(resumeServiceGateway.getResume(RESUME_ID)).thenReturn(ResumeBriefDTO.builder()
+                .id(RESUME_ID).userId(16L).fileName("demo.md").rawText("张三").build());
+
+        assertThatThrownBy(() -> matchService.match(99L, RESUME_ID, JOB_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("简历不存在");
     }
 }

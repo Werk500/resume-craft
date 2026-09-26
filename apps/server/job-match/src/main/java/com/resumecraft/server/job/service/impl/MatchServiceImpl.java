@@ -25,6 +25,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -57,9 +58,9 @@ public class MatchServiceImpl implements MatchService {
      * @return
      */
     @Override
-    public ApiResponse<MatchResult> match(Long resumeId, Long jobId) {
+    public ApiResponse<MatchResult> match(Long currentUserId, Long resumeId, Long jobId) {
 
-        return match(resumeId, jobId,null,false);
+        return match(currentUserId,resumeId, jobId,null,false);
     }
 
     // ==================== 新增重载方法（支持版本 + 强制刷新） ====================
@@ -74,7 +75,7 @@ public class MatchServiceImpl implements MatchService {
      */
 
     @Override
-    public ApiResponse<MatchResult> match(Long resumeId, Long jobId, Long versionId, boolean forceRefresh) {
+    public ApiResponse<MatchResult> match(Long currentUserId, Long resumeId, Long jobId, Long versionId, boolean forceRefresh) {
 
         //1.岗位校验
         Job job = jobMapper.selectById(jobId);
@@ -109,6 +110,13 @@ public class MatchServiceImpl implements MatchService {
             resumeText =buildResumeText(brief);
             resumeUserId = brief.getUserId();
         }
+
+        if (!Objects.equals(resumeUserId, currentUserId)) {
+            // 与 resume 服务保持一致：不区分「不存在」和「无权访问」，
+            // 避免通过返回信息探测资源是否存在
+            throw new IllegalArgumentException("简历不存在：id=" + resumeId);
+        }
+
         // 3. 构建缓存 key（包含版本信息，区分不同版本的匹配结果）
         String cacheKey = buildCacheKey(resumeId, jobId, versionId);
 

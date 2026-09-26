@@ -2,6 +2,8 @@ package com.resumecraft.server.job.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.security.AuthContext;
+import com.resumecraft.server.job.agent.AgentMemoryId;
 import com.resumecraft.server.job.agent.JobAgent;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +28,7 @@ public class AgentController {
 
     @Resource
     private JobAgent jobAgent;
-    @Autowired
+    @Resource
     private ObjectMapper objectMapper;
 
     /**
@@ -46,14 +48,15 @@ public class AgentController {
 
 
         //标记"同一个用户的多轮对话"
-        String sessionId = body.getOrDefault("sessionId", UUID.randomUUID().toString());
+        Long userId = AuthContext.getUserId();
+        String memoryId = AgentMemoryId.normalize(userId, body.get("sessionId"));
 
         long start = System.currentTimeMillis();
-        String answer = jobAgent.chat(sessionId, message);
+        String answer = jobAgent.chat(memoryId, message);
 
-        log.info("Agent 对话完成: sessionId={}, 耗时={}ms", sessionId, System.currentTimeMillis() - start);
+        log.info("Agent 对话完成: memoryId={}, 耗时={}ms", memoryId, System.currentTimeMillis() - start);
 
-        return ApiResponse.ok(Map.of("sessionId", sessionId, "answer", answer));
+        return ApiResponse.ok(Map.of("sessionId", memoryId, "answer", answer));
 
     }
 
@@ -64,8 +67,8 @@ public class AgentController {
             throw new IllegalArgumentException("消息内容不能为空");
         }
 
-        String sessionId = body.getOrDefault("sessionId", UUID.randomUUID().toString());
-
+        Long userId = AuthContext.getUserId();
+        String memoryId = AgentMemoryId.normalize(userId, body.get("sessionId"));
         /*
          * 关于「工具调用那一轮」的 token：
          *
@@ -86,10 +89,10 @@ public class AgentController {
         boolean[] toolSeen = {false};
 
         return Flux.create(sink -> {
-            sink.next(frame("start",Map.of("sessionId",sessionId)));
+            sink.next(frame("start",Map.of("sessionId",memoryId)));
 
             try{
-                jobAgent.chatStream(sessionId, message)
+                jobAgent.chatStream(memoryId, message)
                         //当 Agent 决定调用某个工具时,触发这个函数。
                         .beforeToolExecution(exec -> {
                             toolSeen[0] = true;
@@ -119,7 +122,7 @@ public class AgentController {
                         })
                         .onError(error -> {
                             log.warn("Agent 流式对话失败: sessionId={}, err={}",
-                                    sessionId, error.getMessage());
+                                    memoryId, error.getMessage());
                             sink.next(frame("error", Map.of("message",
                                     error.getMessage() == null ? "对话失败" : error.getMessage())));
                             sink.complete();

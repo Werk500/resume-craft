@@ -8,6 +8,7 @@ import com.resumecraft.server.job.service.JobService;
 import com.resumecraft.server.job.service.MatchService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.agent.tool.ToolMemoryId;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -65,36 +66,43 @@ public class JobAgentTools {
 
 
     @Tool("计算某份简历与某个岗位的匹配度。返回总分、关键词覆盖、语义相似度、硬性条件是否通过、缺失的关键词。")
-    public String calculateMatch(@P("简历 ID") Long resumeId,
+    public String calculateMatch(@ToolMemoryId String memoryId, @P("简历 ID") Long resumeId,
                                  @P("岗位 ID") Long jobId){
 
-        MatchResult result = matchService.match(resumeId, jobId, null, true).getData();
-        if (result == null) {
-            return "匹配计算失败";
+        try {
+            Long userId = AgentMemoryId.userIdOf(memoryId);
+
+            MatchResult result = matchService.match(userId,resumeId, jobId, null, true).getData();
+            if (result == null) {
+                return "匹配计算失败";
+            }
+
+            List<String> missingList = result.getMissingKeywords();
+            String missing = (missingList == null || missingList.isEmpty())
+                    ? "无"
+                    : String.join("、", missingList);
+
+            String mode = (result.getDimensionDetails() == null
+                    || result.getDimensionDetails().getSemantic() == null)
+                    ? "未知"
+                    : result.getDimensionDetails().getSemantic().getMode();
+
+            return String.format("""
+                            总分：%s
+                            关键词覆盖：%s
+                            语义相似度：%s
+                            硬性条件：%s
+                            缺失关键词：%s
+                            语义评分来源：%s""",
+                    result.getOverallScore(),
+                    result.getKeywordCoverage(),
+                    result.getSemanticSimilarity(),
+                    Boolean.TRUE.equals(result.getHardRequirementPassed()) ? "通过" : "未通过",
+                    missing,
+                    mode);
+        } catch (IllegalArgumentException e) {
+            return "无法计算：" + e.getMessage()
+                    + "。该简历 ID 可能不属于当前账号，可先让我列出你的简历。";
         }
-
-        List<String> missingList = result.getMissingKeywords();
-        String missing = (missingList == null || missingList.isEmpty())
-                ? "无"
-                : String.join("、", missingList);
-
-        String mode = (result.getDimensionDetails() == null
-                || result.getDimensionDetails().getSemantic() == null)
-                ? "未知"
-                : result.getDimensionDetails().getSemantic().getMode();
-
-        return String.format("""
-                        总分：%s
-                        关键词覆盖：%s
-                        语义相似度：%s
-                        硬性条件：%s
-                        缺失关键词：%s
-                        语义评分来源：%s""",
-                result.getOverallScore(),
-                result.getKeywordCoverage(),
-                result.getSemanticSimilarity(),
-                Boolean.TRUE.equals(result.getHardRequirementPassed()) ? "通过" : "未通过",
-                missing,
-                mode);
     }
 }

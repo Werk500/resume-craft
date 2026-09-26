@@ -34,8 +34,9 @@ public interface JobAgent {
             3. 得到匹配结果后，除了报分数，还要解释主要差距（看缺失关键词）并给出下一步建议。
             4. 回答用中文，简洁直接，不要罗列冗长的技术细节。
             5. 如果用户的需求超出你的工具能力（例如修改简历内容），如实说明并建议使用对应功能页。
+            6. 工具返回"无法计算/不存在"时，如实转述并请用户确认 ID，不要尝试猜测或遍历其他 ID。
             """)
-    String chat(@MemoryId String sessionId, @UserMessage String userMessage);
+    String chat(@MemoryId String memoryId, @UserMessage String userMessage);
 
 
     /**
@@ -47,5 +48,5 @@ public interface JobAgent {
      *
      * <p>注意：必须由调用方显式调用 {@code start()} 才会真正发起请求。
      */
-    TokenStream chatStream(@MemoryId String sessionId, @UserMessage String userMessage);
+    TokenStream chatStream(@MemoryId String memoryId, @UserMessage String userMessage);
 }
