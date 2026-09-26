@@ -39,6 +39,8 @@ public class MatchEngine {
     private VectorStore vectorStore;
     @Resource
     private AiObservability aiObservability;
+    @Resource
+    private JobKeywordProvider jobKeywordProvider;
 
 
 
@@ -66,7 +68,7 @@ public class MatchEngine {
         log.info("开始匹配计算，职位: {}", job.getTitle());
 
         //1.AI抽取关键词
-        List<String> keywords = extractKeywords(job);
+        List<String> keywords = jobKeywordProvider.keywords(job);
 
         //2.关键词匹配（40%）
         KeywordMatchResult keywordResult = calculateKeywordMatch(resumeText, keywords);
@@ -105,87 +107,6 @@ public class MatchEngine {
                 .dimensionDetails(buildDimensionDetails(keywordResult, semanticResult, hardResult))
                 .build();
 
-    }
-
-
-    /**
-     * AI 从 JD 抽取核心关键词，失败时规则兜底
-     */
-    private List<String> extractKeywords(Job job) {
-        try {
-            String userPrompt = PromptTemplates.extractKeywords(
-                    job.getTitle(),
-                    job.getDescription(),
-                    job.getRequirements()
-            );
-            String response = aiService.chat(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM, userPrompt);
-
-            // 解析 JSON
-            String jsonStr = response
-                    .replaceAll("```json\\s*", "")
-                    .replaceAll("```\\s*", "")
-                    .trim();
-
-            JsonNode json = objectMapper.readTree(jsonStr);
-            JsonNode keywordsNode = json.get("keywords");
-
-            if (keywordsNode != null && keywordsNode.isArray()) {
-                List<String> keywords = new ArrayList<>();
-                for (JsonNode node : keywordsNode) {
-                    String keyword = node.asText().trim();
-                    if (!keyword.isEmpty()) {
-                        keywords.add(keyword);
-                    }
-                }
-                if (!keywords.isEmpty()) {
-                    return keywords;
-                }
-            }
-
-            log.warn("AI 关键词抽取返回空，使用规则兜底");
-            return extractKeywordsByRule(job);
-
-        } catch (Exception e) {
-            log.warn("AI 关键词抽取失败，使用规则兜底: {}", e.getMessage());
-            return extractKeywordsByRule(job);
-        }
-    }
-
-    /**
-     * 规则兜底：从职位要求和描述中提取关键词
-     */
-    private List<String> extractKeywordsByRule(Job job) {
-        Set<String> keywords = new HashSet<>();
-
-        String text = (job.getTitle() + " " +
-                job.getDescription() + " " +
-                job.getRequirements()).toLowerCase();
-
-        // 常见技术关键词库（可扩展）
-        String[] commonKeywords = {
-                "java", "python", "go", "rust", "c++", "javascript", "typescript",
-                "spring", "springboot", "spring boot", "mybatis", "hibernate",
-                "mysql", "postgresql", "redis", "mongodb", "elasticsearch",
-                "docker", "kubernetes", "k8s", "jenkins", "git", "linux",
-                "微服务", "分布式", "高并发", "消息队列", "kafka", "rabbitmq",
-                "vue", "react", "angular", "html", "css", "前端", "后端",
-                "数据分析", "机器学习", "ai", "人工智能", "算法"
-        };
-
-        for (String kw : commonKeywords) {
-            if (text.contains(kw)) {
-                keywords.add(kw);
-            }
-        }
-
-        // 如果提取到的关键词太少，加一些默认词
-        if (keywords.size() < 3) {
-            keywords.add("java");
-            keywords.add("spring");
-            keywords.add("mysql");
-        }
-
-        return new ArrayList<>(keywords);
     }
 
     /**

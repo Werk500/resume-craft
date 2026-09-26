@@ -101,8 +101,7 @@ public class JobAgentTools {
                     missing,
                     mode);
         } catch (IllegalArgumentException e) {
-            return "无法计算：" + e.getMessage()
-                    + "。该简历 ID 可能不属于当前账号，可先让我列出你的简历。";
+            return "无法计算：" + e.getMessage() + "。请确认该简历 ID 属于当前账号。";
         }
     }
 }

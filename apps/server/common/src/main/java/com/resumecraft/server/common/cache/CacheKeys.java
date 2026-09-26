@@ -71,4 +71,9 @@ public final class CacheKeys {
     public static String matchPattern(Long resumeId) {
         return PREFIX + "match:" + resumeId + ":*";
     }
+
+
+    public static String jdKeywords(Long jobId, String contentHash) {
+        return PREFIX + "jd-keywords:" + jobId + ":" + contentHash;
+    }
 }
