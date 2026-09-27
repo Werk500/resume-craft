@@ -99,4 +99,34 @@ public class AiObservability {
                 .tag("kind",kind)
                 .register(registry);
     }
+
+    /** Agent 单次工具调用：耗时 + 次数 + 成功/失败（标签基数受限，tool 只有两个值） */
+    public void recordAgentToolCall(String tool,String outcome,Duration duration) {
+        Timer.builder("agent.tool.duration")
+                .description("Agent tool call latency")
+                .tag("tool", tool)
+                .tag("outcome", outcome)
+                .publishPercentiles(0.5,0.95)
+                .register(registry)
+                .record(duration);
+    }
+
+    /** Agent 单轮对话（一次用户提问到给出答案） */
+    public void recordAgentTurn(String outcome, Duration duration) {
+        Timer.builder("agent.turn.duration")
+                .description("Agent turn latency")
+                .tag("outcome", outcome)      // success / error / round_limit
+                .publishPercentiles(0.5, 0.95)
+                .register(registry)
+                .record(duration);
+    }
+
+    /** 护栏触发次数：hallucinated_tool / arguments_error / round_limit */
+    public void recordAgentGuardrail(String type) {
+        Counter.builder("agent.guardrail.triggers")
+                .description("Agent guardrail trigger count")
+                .tag("type", type)
+                .register(registry)
+                .increment();
+    }
 }

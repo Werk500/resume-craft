@@ -1,6 +1,7 @@
 package com.resumecraft.server.job.agent;
 
 
+import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.dto.JobPageResult;
@@ -13,6 +14,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -41,33 +43,49 @@ public class JobAgentTools {
     private JobService jobService;
     @Resource
     private MatchService matchService;
+    @Resource
+    private AiObservability aiObservability;
 
     @Tool("在岗位库中搜索岗位。company 为公司名（可为空）；keyword 为岗位或技术关键词（可为空）。返回岗位的 ID、公司、标题、城市。")
     public String searchJobs(@P("公司名，如 字节跳动，可为空") String company,
                              @P("岗位或技术关键词，如 后端、Java，可为空") String keyword){
 
-        //常量既限制返回条数，也限制查询条数
-        JobPageResult pageResult = jobService.search(company, keyword, 1, MAX_LIST_SIZE);
+        long start = System.currentTimeMillis();
 
-        if (pageResult == null || pageResult.getList() == null || pageResult.getList().isEmpty()) {
-            return "没有找到匹配的岗位。";
+        try {
+            //常量既限制返回条数，也限制查询条数
+            JobPageResult pageResult = jobService.search(company, keyword, 1, MAX_LIST_SIZE);
+
+            if (pageResult == null || pageResult.getList() == null || pageResult.getList().isEmpty()) {
+                String result = "没有找到匹配的岗位。";
+                recordToolCall("searchJobs","success",start);
+                return result;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            for (Job job : pageResult.getList()) {
+                sb.append(String.format("#%d | %s | %s | %s%n", job.getId(),job.getCompany(),
+                        job.getTitle(),job.getLocation()));
+            }
+
+            sb.append("（共 ").append(pageResult.getTotal()).append(" 条符合条件）");
+
+            String result = sb.toString();
+            recordToolCall("searchJobs", "success", start);
+
+            return result;
+        } catch (Exception e) {
+            recordToolCall("searchJobs", "error", start);
+            throw e;
         }
-
-        StringBuilder sb = new StringBuilder();
-        for (Job job : pageResult.getList()) {
-            sb.append(String.format("#%d | %s | %s | %s%n", job.getId(),job.getCompany(),
-                    job.getTitle(),job.getLocation()));
-        }
-
-        sb.append("（共 ").append(pageResult.getTotal()).append(" 条符合条件）");
-
-        return sb.toString();
     }
 
 
     @Tool("计算某份简历与某个岗位的匹配度。返回总分、关键词覆盖、语义相似度、硬性条件是否通过、缺失的关键词。")
     public String calculateMatch(@ToolMemoryId String memoryId, @P("简历 ID") Long resumeId,
                                  @P("岗位 ID") Long jobId){
+
+        long start = System.currentTimeMillis();
 
         try {
             Long userId = AgentMemoryId.userIdOf(memoryId);
@@ -87,7 +105,7 @@ public class JobAgentTools {
                     ? "未知"
                     : result.getDimensionDetails().getSemantic().getMode();
 
-            return String.format("""
+            String toolResult = String.format("""
                             总分：%s
                             关键词覆盖：%s
                             语义相似度：%s
@@ -100,8 +118,22 @@ public class JobAgentTools {
                     Boolean.TRUE.equals(result.getHardRequirementPassed()) ? "通过" : "未通过",
                     missing,
                     mode);
+
+            recordToolCall("calculateMatch", "success", start);
+            return toolResult;
         } catch (IllegalArgumentException e) {
+            // 越权 / 资源不存在属于"业务拒绝"：工具正常返回了给模型看的文案，
+            // 记 success 而不是 error，否则指标里的失败率会虚高
+            recordToolCall("calculateMatch", "success", start);
             return "无法计算：" + e.getMessage() + "。请确认该简历 ID 属于当前账号。";
+        }catch (Exception e) {
+            recordToolCall("calculateMatch", "error", start);
+            throw e;
         }
+    }
+
+    private void recordToolCall(String toolName, String status, long start) {
+        long elapsed = System.currentTimeMillis() - start;
+        aiObservability.recordAgentToolCall(toolName, status, Duration.ofMillis(elapsed));
     }
 }

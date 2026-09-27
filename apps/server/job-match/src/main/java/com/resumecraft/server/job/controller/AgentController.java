@@ -2,6 +2,7 @@ package com.resumecraft.server.job.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.agent.AgentMemoryId;
 import com.resumecraft.server.job.agent.JobAgent;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,6 +35,11 @@ public class AgentController {
     /** 会话记忆的存储（RedisChatMemoryStore） */
     @Resource
     private ChatMemoryStore chatMemoryStore;
+    @Resource
+    private AiObservability aiObservability;
+
+    private static final String ROUND_LIMIT_HINT =
+            "我已经连续调用多次工具仍未得出结论。请把问题拆小一点（例如先指定一个岗位 ID），我再继续。";
 
     /**
      * 求职助手对话。
@@ -49,13 +56,28 @@ public class AgentController {
             throw new IllegalArgumentException("消息内容不能为空");
         }
 
-
         //标记"同一个用户的多轮对话"
         Long userId = AuthContext.getUserId();
         String memoryId = AgentMemoryId.normalize(userId, body.get("sessionId"));
 
         long start = System.currentTimeMillis();
-        String answer = jobAgent.chat(memoryId, message);
+        String outcome = "success";
+        String answer;
+        try{
+            answer = jobAgent.chat(memoryId,message);
+        }catch (RuntimeException e) {
+
+            if (isRoundLimitError(e)) {
+                outcome = "round_limit";
+                aiObservability.recordAgentGuardrail("round_limit");
+                throw new IllegalArgumentException(ROUND_LIMIT_HINT);
+            }
+            outcome = "error";
+            throw e;
+        }finally {
+            aiObservability.recordAgentTurn(outcome,
+                    Duration.ofMillis(System.currentTimeMillis() - start));
+        }
 
         log.info("Agent 对话完成: memoryId={}, 耗时={}ms", memoryId, System.currentTimeMillis() - start);
 
@@ -91,6 +113,8 @@ public class AgentController {
         StringBuilder pendingBeforeTool = new StringBuilder();
         boolean[] toolSeen = {false};
 
+        long start = System.currentTimeMillis();
+
         return Flux.create(sink -> {
             sink.next(frame("start",Map.of("sessionId",memoryId)));
 
@@ -121,13 +145,27 @@ public class AgentController {
                                 pendingBeforeTool.setLength(0);
                             }
                             sink.next(frame("done",Map.of()));//先发一帧 done
+                            // 成功路径也要记单轮指标：否则 Prometheus 里只有 round_limit / error，
+                            // 看起来像"这一路全是失败"（流式是前端主路径，漏了它等于没测）
+                            aiObservability.recordAgentTurn("success",
+                                    Duration.ofMillis(System.currentTimeMillis() - start));
                             sink.complete();// 再关闭流
                         })
                         .onError(error -> {
                             log.warn("Agent 流式对话失败: sessionId={}, err={}",
                                     memoryId, error.getMessage());
-                            sink.next(frame("error", Map.of("message",
-                                    error.getMessage() == null ? "对话失败" : error.getMessage())));
+
+                            if(isRoundLimitError(error)) {
+                                sink.next(frame("error", Map.of("message", ROUND_LIMIT_HINT)));
+                                aiObservability.recordAgentGuardrail("round_limit");
+                                aiObservability.recordAgentTurn("round_limit",
+                                        Duration.ofMillis(System.currentTimeMillis() - start));
+                            }else {
+                                sink.next(frame("error", Map.of("message",
+                                        error.getMessage() == null ? "对话失败" : error.getMessage())));
+                                aiObservability.recordAgentTurn("error",
+                                        Duration.ofMillis(System.currentTimeMillis() - start));
+                            }
                             sink.complete();
                         })
                         .start();
@@ -135,11 +173,12 @@ public class AgentController {
                 log.error("启动 Agent 流式对话失败", e);
                 sink.next(frame("error", Map.of("message", "启动对话失败")));
                 sink.complete();
+
+                aiObservability.recordAgentTurn("error",
+                        Duration.ofMillis(System.currentTimeMillis() - start));
             }
         });
     }
-
-
 
     /** 组装统一格式的 SSE JSON 帧 */
     //把 type 和 payload 合并成一个 JSON 字符串。
@@ -176,5 +215,10 @@ public class AgentController {
 
         log.info("Agent 会话已清空: memoryId={}", memoryId);
         return ApiResponse.ok(Map.of("sessionId", memoryId, "cleared", true));
+    }
+
+    /** 框架超限时抛的是 RuntimeException，消息里带 "tool calling round trips" */
+    private boolean isRoundLimitError(Throwable t) {
+        return t.getMessage() != null && t.getMessage().contains("tool calling round trips");
     }
 }
