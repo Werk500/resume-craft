@@ -26,6 +26,11 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: 6379
       password: ${REDIS_PASSWORD:123456}
+      # Fail fast when redis is unreachable. The default Lettuce command timeout
+      # is 60s, which would stall EVERY request at the rate limiter while redis
+      # is down (measured 63s before the first SSE frame). 1s is plenty for a
+      # local token-bucket check and lets the filter fail open quickly.
+      timeout: 1000ms
 
   cloud:
     gateway:

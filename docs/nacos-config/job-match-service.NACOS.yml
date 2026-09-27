@@ -28,8 +28,7 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: 6379
       password: ${REDIS_PASSWORD:123456}
-      timeout: 5000ms
-
+      timeout: 1000ms
   # ---------- Spring AI (chat for keyword extraction + semantic scoring) ----------
   ai:
     model:
@@ -92,6 +91,9 @@ app:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
     expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+  agent:
+    timeout-seconds: 60
+    max-retries: 1
 
   # ---------- Embedding (Alibaba Bailian text-embedding-v3, 1024 dims) ----------
   # Falls back to AI-approximate scoring when the API key is absent.
@@ -136,9 +138,22 @@ resilience4j:
         # circuit breaker aspect observes it, so a Feign-based rule never matches.
         ignore-exceptions:
           - java.lang.IllegalArgumentException
+      agentMemory:
+        # Memory store ops run a dozen+ times per chat turn. With the default
+        # minimum-number-of-calls=10 the breaker would only open at the very
+        # end of a turn; 3 failures (~3s at a 1s redis timeout) is enough.
+        sliding-window-size: 6
+        sliding-window-type: COUNT_BASED
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 3
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
     instances:
       resumeService:
         base-config: default
+      agentMemory:
+        base-config: agentMemory
   timelimiter:
     configs:
       default:
