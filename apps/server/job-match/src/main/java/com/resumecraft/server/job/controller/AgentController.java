@@ -5,9 +5,9 @@ import com.resumecraft.server.common.ApiResponse;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.agent.AgentMemoryId;
 import com.resumecraft.server.job.agent.JobAgent;
+import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -30,6 +30,9 @@ public class AgentController {
     private JobAgent jobAgent;
     @Resource
     private ObjectMapper objectMapper;
+    /** 会话记忆的存储（RedisChatMemoryStore） */
+    @Resource
+    private ChatMemoryStore chatMemoryStore;
 
     /**
      * 求职助手对话。
@@ -136,6 +139,8 @@ public class AgentController {
         });
     }
 
+
+
     /** 组装统一格式的 SSE JSON 帧 */
     //把 type 和 payload 合并成一个 JSON 字符串。
     private String frame(String type, Map<String, String> payload) {
@@ -149,5 +154,27 @@ public class AgentController {
             log.warn("SSE 帧序列化失败: {}", e.getMessage());
             return "{\"type\":\"error\",\"message\":\"序列化失败\"}";
         }
+    }
+
+    /**
+     * 清空一个会话的记忆。
+     *
+     * <p>为什么需要它：记忆现在存在 Redis 里（TTL 24h），前端的「新会话」按钮
+     * 只是重置界面状态并换一个 sessionId，旧会话的记忆仍会留在 Redis 里等到过期。
+     * 有了这个接口，用户可以主动清掉，也便于演示"清掉之后它就真忘了"。
+     *
+     * <p>sessionId 走路径参数，前端需要对它 encodeURIComponent（memoryId 形如
+     * {@code 16:uuid}，含冒号）。服务端会先剥离可能存在的 userId 前缀、
+     * 再按当前登录用户重拼，所以客户端无法用它去删别人的会话。
+     */
+    @DeleteMapping("/session/{sessionId}")
+    public ApiResponse<Map<String, Object>> clearSession(@PathVariable String sessionId) {
+        Long userId = AuthContext.getUserId();
+        String memoryId = AgentMemoryId.normalize(userId, sessionId);
+
+        chatMemoryStore.deleteMessages(memoryId);
+
+        log.info("Agent 会话已清空: memoryId={}", memoryId);
+        return ApiResponse.ok(Map.of("sessionId", memoryId, "cleared", true));
     }
 }

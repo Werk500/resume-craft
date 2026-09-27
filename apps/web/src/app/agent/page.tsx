@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AGENT_QUICK_PROMPTS, agentToolLabel, streamAgentChat } from "@/lib/agent";
+import {
+  AGENT_QUICK_PROMPTS,
+  agentToolLabel,
+  clearAgentSession,
+  streamAgentChat,
+} from "@/lib/agent";
 import type { AgentStreamEvent } from "@/lib/agent";
 import MarkdownLite from "@/components/MarkdownLite";
 
@@ -127,6 +132,10 @@ export default function AgentPage() {
 
   function resetChat() {
     if (pending) return;
+    // 顺手清掉后端（Redis）里的会话记忆；失败只影响"清得不彻底"，不打断界面重置
+    if (sessionId) {
+      void clearAgentSession(sessionId).catch(() => {});
+    }
     setMessages([{ role: "assistant", content: GREETING }]);
     setSessionId(undefined);
     setError(null);

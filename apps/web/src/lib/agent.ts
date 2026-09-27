@@ -192,6 +192,35 @@ function isAuthFailure(status: number): boolean {
   return status === 401 || status === 403;
 }
 
+/**
+ * 清空一个会话的记忆（后端 Redis 里的对话历史）。
+ *
+ * 后端契约：DELETE /api/v1/agent/session/{sessionId}
+ *
+ * 刻意不做「登录失效就跳登录页」：这是点「新会话」时的后台清理动作，
+ * 失败也不该把用户踢走，所以由调用方忽略异常。
+ */
+export async function clearAgentSession(sessionId: string): Promise<void> {
+  let token: string | null = null;
+  if (typeof window !== "undefined") {
+    token = localStorage.getItem("token");
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/v1/agent/session/${encodeURIComponent(sessionId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`清空会话失败 (HTTP ${response.status})`);
+  }
+}
+
 /** 清理登录态、跳登录页，并中断当前调用链 */
 function requireLogin(): never {
   if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {

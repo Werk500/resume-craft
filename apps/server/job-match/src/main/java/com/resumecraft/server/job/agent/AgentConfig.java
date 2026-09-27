@@ -4,6 +4,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,12 +21,14 @@ public class AgentConfig {
     @Bean
     public JobAgent jobAgent(ChatModel agentChatModel,
                              StreamingChatModel agentStreamingChatModel,
-                             JobAgentTools tools) {
+                             JobAgentTools tools, ChatMemoryStore redisChatMemoryStore) {
         return AiServices.builder(JobAgent.class)
                 .chatModel(agentChatModel)                    // 返回 String 的方法走这条
                 .streamingChatModel(agentStreamingChatModel)  // 返回 TokenStream 的方法走这条
                 .tools(tools)
-                .chatMemoryProvider(sessionId -> MessageWindowChatMemory.withMaxMessages(20))
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
+                        .id(memoryId)
+                        .maxMessages(20).chatMemoryStore(redisChatMemoryStore).build())
                 .build();
     }
 }

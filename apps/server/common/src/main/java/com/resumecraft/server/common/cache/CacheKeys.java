@@ -76,4 +76,8 @@ public final class CacheKeys {
     public static String jdKeywords(Long jobId, String contentHash) {
         return PREFIX + "jd-keywords:" + jobId + ":" + contentHash;
     }
+
+    public static String agentMemory(String memoryId) {
+        return PREFIX + "agent:memory:" + memoryId;
+    }
 }
