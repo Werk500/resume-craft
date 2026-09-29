@@ -2,6 +2,7 @@ package com.resumecraft.server.job.agent;
 
 
 import com.resumecraft.server.common.metrics.AiObservability;
+import com.resumecraft.server.ai.impl.UntrustedContent;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.dto.JobPageResult;
@@ -70,7 +71,8 @@ public class JobAgentTools {
 
             sb.append("（共 ").append(pageResult.getTotal()).append(" 条符合条件）");
 
-            String result = sb.toString();
+            // 岗位标题/公司来自数据库（可能是抓取的），按不可信数据包起来
+            String result = UntrustedContent.wrap("JOBS", sb.toString());
             recordToolCall("searchJobs", "success", start);
 
             return result;
@@ -120,7 +122,8 @@ public class JobAgentTools {
                     mode);
 
             recordToolCall("calculateMatch", "success", start);
-            return toolResult;
+            // 缺失关键词等字段来自 JD，同样按不可信数据包起来
+            return UntrustedContent.wrap("MATCH", toolResult);
         } catch (IllegalArgumentException e) {
             // 越权 / 资源不存在属于"业务拒绝"：工具正常返回了给模型看的文案，
             // 记 success 而不是 error，否则指标里的失败率会虚高
