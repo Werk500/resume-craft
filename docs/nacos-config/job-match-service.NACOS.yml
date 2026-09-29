@@ -94,6 +94,9 @@ app:
   agent:
     timeout-seconds: 60
     max-retries: 1
+    # Tool calling round-trip cap. Framework default is 100, which lets a looping
+    # model run 100 rounds of (model + tools) before erroring out.
+    max-tool-rounds: 6
 
   # ---------- Embedding (Alibaba Bailian text-embedding-v3, 1024 dims) ----------
   # Falls back to AI-approximate scoring when the API key is absent.
