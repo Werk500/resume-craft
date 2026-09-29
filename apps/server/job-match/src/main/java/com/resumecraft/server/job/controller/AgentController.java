@@ -6,6 +6,9 @@ import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.agent.AgentMemoryId;
 import com.resumecraft.server.job.agent.JobAgent;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +17,9 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -215,6 +220,47 @@ public class AgentController {
 
         log.info("Agent 会话已清空: memoryId={}", memoryId);
         return ApiResponse.ok(Map.of("sessionId", memoryId, "cleared", true));
+    }
+
+    /**
+     * 读取某个会话的历史消息，供前端「历史会话」回看。
+     *
+     * <p>数据源就是会话记忆本身（RedisChatMemoryStore），所以返回的是<b>模型当前能看到的
+     * 那个窗口</b>（MessageWindowChatMemory 上限 20 条），而不是完整历史——刻意与模型上下文
+     * 保持一致，避免出现"界面上看得到、模型却已经忘了"的错位。
+     *
+     * <p>只暴露 user / assistant 两类消息；system 与工具调用相关的消息属于内部上下文，过滤掉。
+     */
+    @GetMapping("/session/{sessionId}/messages")
+    public ApiResponse<List<Map<String, String>>> sessionMessages(@PathVariable String sessionId) {
+        Long userId = AuthContext.getUserId();
+        String memoryId = AgentMemoryId.normalize(userId, sessionId);
+
+        List<Map<String, String>> view = chatMemoryStore.getMessages(memoryId).stream()
+                .map(this::toCapturedMessage)
+                .filter(Objects::nonNull)
+                .toList();
+
+        log.info("读取 Agent 会话历史: memoryId={}, 消息数={}", memoryId, view.size());
+        return ApiResponse.ok(view);
+    }
+
+    /** 把记忆里的 ChatMessage 映射成前端要的 {role, content}；内部消息返回 null 交给调用方过滤 */
+    private Map<String, String> toCapturedMessage(ChatMessage message) {
+        if (message instanceof UserMessage user) {
+            String text = user.singleText();
+            return (text == null || text.isBlank())
+                    ? null
+                    : Map.of("role", "user", "content", text);
+        }
+        if (message instanceof AiMessage ai) {
+            // 工具调用轮的 AiMessage 只有 toolExecutionRequests、没有正文，跳过
+            String text = ai.text();
+            return (text == null || text.isBlank())
+                    ? null
+                    : Map.of("role", "assistant", "content", text);
+        }
+        return null;
     }
 
     /** 框架超限时抛的是 RuntimeException，消息里带 "tool calling round trips" */

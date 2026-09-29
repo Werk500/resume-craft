@@ -1,4 +1,4 @@
-import { API_BASE, clearAuth } from "./api";
+import { API_BASE, api, clearAuth } from "./api";
 
 /**
  * 求职助手 Agent 对话。
@@ -243,3 +243,91 @@ export const AGENT_QUICK_PROMPTS = [
   "这个岗位需要什么技术栈？",
   "帮我看看简历和岗位的匹配度",
 ];
+
+// ==================== 会话列表 ====================
+
+/**
+ * 会话条目。
+ *
+ * 只存前端需要的元数据（标题/时间），**消息本体不存这里**——
+ * 它们在后端 Redis 的会话记忆里（TTL 24h），切换会话时按需拉取。
+ * 这样前后端不会各存一份、互相打架。
+ */
+export interface AgentSession {
+  sessionId: string;
+  title: string;
+  updatedAt: number;
+}
+
+/** 会话历史消息（后端会把 USER/AI 之外的 system/tool 消息过滤掉） */
+export interface AgentSessionMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+const SESSION_STORE_KEY = "agent:sessions";
+/** 本地最多保留的会话条数，防止 localStorage 无限增长 */
+const MAX_SESSIONS = 30;
+
+function persistAgentSessions(list: AgentSession[]): AgentSession[] {
+  const trimmed = list.slice(0, MAX_SESSIONS);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SESSION_STORE_KEY, JSON.stringify(trimmed));
+  }
+  return trimmed;
+}
+
+/** 读取本地会话列表（按最近使用倒序） */
+export function loadAgentSessions(): AgentSession[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SESSION_STORE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AgentSession[];
+    return Array.isArray(parsed) ? parsed.filter((s) => s?.sessionId) : [];
+  } catch {
+    // 本地数据损坏不该让页面白屏，直接当作没有历史
+    return [];
+  }
+}
+
+/** 新建或更新一条会话（标题只在首次创建时写入，之后由用户重命名决定） */
+export function touchAgentSession(sessionId: string, firstMessage: string): AgentSession[] {
+  const list = loadAgentSessions();
+  const existing = list.find((s) => s.sessionId === sessionId);
+  const rest = list.filter((s) => s.sessionId !== sessionId);
+  const entry: AgentSession = existing
+    ? { ...existing, updatedAt: Date.now() }
+    : {
+        sessionId,
+        title: firstMessage.trim().slice(0, 20) || "新会话",
+        updatedAt: Date.now(),
+      };
+  return persistAgentSessions([entry, ...rest]);
+}
+
+export function renameAgentSession(sessionId: string, title: string): AgentSession[] {
+  const list = loadAgentSessions().map((s) =>
+    s.sessionId === sessionId ? { ...s, title: title.trim() || s.title } : s,
+  );
+  return persistAgentSessions(list);
+}
+
+export function removeAgentSession(sessionId: string): AgentSession[] {
+  return persistAgentSessions(loadAgentSessions().filter((s) => s.sessionId !== sessionId));
+}
+
+/**
+ * 拉取某个会话的历史消息。
+ *
+ * 后端契约：GET /api/v1/agent/session/{sessionId}/messages
+ * 返回信封 { code, message, data: [{role, content}] }，所以直接用 api() 走统一鉴权与解包。
+ */
+export async function fetchAgentSessionMessages(
+  sessionId: string,
+): Promise<AgentSessionMessage[]> {
+  const data = await api<AgentSessionMessage[]>(
+    `/api/v1/agent/session/${encodeURIComponent(sessionId)}/messages`,
+  );
+  return Array.isArray(data) ? data : [];
+}

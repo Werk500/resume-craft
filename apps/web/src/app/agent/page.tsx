@@ -6,9 +6,14 @@ import {
   AGENT_QUICK_PROMPTS,
   agentToolLabel,
   clearAgentSession,
+  fetchAgentSessionMessages,
+  loadAgentSessions,
+  removeAgentSession,
+  renameAgentSession,
   streamAgentChat,
+  touchAgentSession,
 } from "@/lib/agent";
-import type { AgentStreamEvent } from "@/lib/agent";
+import type { AgentSession, AgentStreamEvent } from "@/lib/agent";
 import MarkdownLite from "@/components/MarkdownLite";
 
 interface Message {
@@ -38,6 +43,15 @@ export default function AgentPage() {
   /** 已收到的正文增量，边收边渲染（打字机） */
   const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** 历史会话列表（标题/时间存 localStorage，消息本体在后端 Redis） */
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  /** 正在重命名的会话 id */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  /** 正在等待删除确认的会话 id */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  /** 历史接口不可用（或记忆已过期）时的提示 */
+  const [historyMissing, setHistoryMissing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   /** 正文累加器：用 state 累加会在闭包里读到旧值 */
   const textRef = useRef("");
@@ -45,6 +59,19 @@ export default function AgentPage() {
   const usedToolsRef = useRef(false);
   /** 当前请求的中断句柄 */
   const abortRef = useRef<AbortController | null>(null);
+  /** 本轮用户问的第一句话，用来给新会话起标题 */
+  const firstMessageRef = useRef("");
+
+  // 首次进入恢复最近一次会话：消息在后端 Redis 里，按需拉取
+  useEffect(() => {
+    const list = loadAgentSessions();
+    setSessions(list);
+    if (list.length > 0) {
+      void openSession(list[0].sessionId);
+    }
+    // 只在挂载时执行一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -71,7 +98,11 @@ export default function AgentPage() {
    */
   function handleStreamEvent(event: AgentStreamEvent) {
     if (event.type === "start") {
-      if (event.sessionId) setSessionId(event.sessionId);
+      if (event.sessionId) {
+        setSessionId(event.sessionId);
+        // 新会话在第一轮 start 帧拿到 memoryId，此时落到本地列表
+        setSessions(touchAgentSession(event.sessionId, firstMessageRef.current));
+      }
     } else if (event.type === "tool") {
       // 后端已在「第一个工具执行前」把工具轮的 token 拦掉了（那是模型决定调
       // 什么工具时的自言自语，不是给用户看的答案）。这里再清一次是兜底：
@@ -92,6 +123,7 @@ export default function AgentPage() {
     if (!content || pending) return;
 
     setMessages((prev) => [...prev, { role: "user", content }]);
+    firstMessageRef.current = content;
     setInput("");
     setError(null);
     setPending(true);
@@ -130,17 +162,52 @@ export default function AgentPage() {
     abortRef.current?.abort();
   }
 
-  function resetChat() {
+  /** 开新会话：旧会话保留在列表里（记忆还在 Redis），只是从这里开始一段新的 */
+  function newSession() {
     if (pending) return;
-    // 顺手清掉后端（Redis）里的会话记忆；失败只影响"清得不彻底"，不打断界面重置
-    if (sessionId) {
-      void clearAgentSession(sessionId).catch(() => {});
-    }
-    setMessages([{ role: "assistant", content: GREETING }]);
     setSessionId(undefined);
+    setMessages([{ role: "assistant", content: GREETING }]);
     setError(null);
     setStreamingText("");
+    setHistoryMissing(false);
     textRef.current = "";
+  }
+
+  /** 切换到某个历史会话：消息从后端拉，前端不存副本 */
+  async function openSession(id: string) {
+    if (pending || id === sessionId) return;
+    setSessionId(id);
+    setEditingId(null);
+    setConfirmId(null);
+    setError(null);
+    setStreamingText("");
+    setHistoryMissing(false);
+    textRef.current = "";
+    setLoadingHistory(true);
+    try {
+      const history = await fetchAgentSessionMessages(id);
+      setMessages(history.length > 0 ? history : [{ role: "assistant", content: GREETING }]);
+    } catch {
+      // 历史接口不可用或记忆已过期：不把用户卡住，提示一下即可（继续提问仍会接上后端上下文）
+      setHistoryMissing(true);
+      setMessages([{ role: "assistant", content: GREETING }]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  function saveTitle(id: string, title: string) {
+    setSessions(renameAgentSession(id, title));
+    setEditingId(null);
+  }
+
+  /** 删除会话：本地列表与后端记忆一起清掉 */
+  function deleteSession(id: string) {
+    if (pending) return;
+    setSessions(removeAgentSession(id));
+    setConfirmId(null);
+    void clearAgentSession(id).catch(() => {});
+    if (id === sessionId) newSession();
   }
 
   const idle = messages.length <= 1;
@@ -155,7 +222,7 @@ export default function AgentPage() {
           </p>
         </div>
         <button
-          onClick={resetChat}
+          onClick={newSession}
           disabled={pending}
           className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50"
         >
@@ -170,8 +237,111 @@ export default function AgentPage() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-        {/* 左侧：能力说明与边界 */}
+        {/* 左侧：历史会话 + 能力说明与边界 */}
         <aside className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-zinc-800">历史会话</p>
+              <button
+                onClick={newSession}
+                disabled={pending}
+                className="rounded-lg border border-zinc-200 px-2 py-0.5 text-[11px] text-zinc-500 transition hover:bg-zinc-100 disabled:opacity-50"
+              >
+                + 新建
+              </button>
+            </div>
+
+            {sessions.length === 0 ? (
+              <p className="mt-3 text-xs leading-relaxed text-zinc-400">
+                还没有历史会话。提问后会自动记录，会话记忆保存在服务端（24 小时）。
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-1">
+                {sessions.map((s) => {
+                  const active = s.sessionId === sessionId;
+                  return (
+                    <li
+                      key={s.sessionId}
+                      className={
+                        "rounded-lg px-2 py-1.5 transition " +
+                        (active ? "bg-zinc-100 ring-1 ring-inset ring-zinc-200" : "hover:bg-zinc-50")
+                      }
+                    >
+                      {editingId === s.sessionId ? (
+                        <input
+                          autoFocus
+                          defaultValue={s.title}
+                          aria-label="会话标题"
+                          onBlur={(e) => saveTitle(s.sessionId, e.target.value)}
+                          onKeyDown={(e) => {
+                            const value = (e.target as HTMLInputElement).value;
+                            if (e.key === "Enter") saveTitle(s.sessionId, value);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs outline-none focus:border-zinc-900"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => void openSession(s.sessionId)}
+                            title={s.title}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <span
+                              className={
+                                "block truncate text-xs " +
+                                (active ? "font-medium text-zinc-900" : "text-zinc-600")
+                              }
+                            >
+                              {s.title}
+                            </span>
+                            <span className="mt-0.5 block text-[10px] text-zinc-400">
+                              {formatSessionTime(s.updatedAt)}
+                            </span>
+                          </button>
+
+                          {confirmId === s.sessionId ? (
+                            <span className="flex shrink-0 items-center gap-1">
+                              <button
+                                onClick={() => deleteSession(s.sessionId)}
+                                className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 ring-1 ring-inset ring-red-200"
+                              >
+                                删除
+                              </button>
+                              <button
+                                onClick={() => setConfirmId(null)}
+                                className="rounded px-1 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100"
+                              >
+                                取消
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="flex shrink-0 items-center">
+                              <button
+                                onClick={() => setEditingId(s.sessionId)}
+                                aria-label="重命名"
+                                className="rounded px-1 text-[11px] text-zinc-300 transition hover:bg-zinc-100 hover:text-zinc-600"
+                              >
+                                ✎
+                              </button>
+                              <button
+                                onClick={() => setConfirmId(s.sessionId)}
+                                aria-label="删除会话"
+                                className="rounded px-1 text-[11px] text-zinc-300 transition hover:bg-zinc-100 hover:text-red-500"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-card">
             <p className="text-sm font-semibold text-zinc-800">它能做什么</p>
             <ul className="mt-3 space-y-2 text-xs leading-relaxed text-zinc-500">
@@ -221,9 +391,23 @@ export default function AgentPage() {
         {/* 右侧：对话区 */}
         <section className="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-card">
           <div className="h-[560px] space-y-4 overflow-y-auto p-5">
+            {historyMissing && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs leading-relaxed text-amber-700">
+                历史消息暂时读不到（会话记忆可能已过期）。继续提问仍会接着服务端的上下文。
+              </div>
+            )}
+
             {messages.map((m, i) => (
               <MessageBubble key={i} message={m} />
             ))}
+
+            {loadingHistory && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-500 shadow-card">
+                  正在加载历史消息…
+                </div>
+              </div>
+            )}
 
             {pending && (
               <div className="flex justify-start">
@@ -354,4 +538,11 @@ function Dot({ delay }: { delay: string }) {
       style={{ animationDelay: delay }}
     />
   );
+}
+
+/** 会话列表里的短时间，如 09-29 16:20 —— 够用且不占宽度 */
+function formatSessionTime(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
