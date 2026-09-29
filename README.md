@@ -18,6 +18,7 @@
 | 异步向量生成 | Kafka 事件驱动：创建/更新简历后异步生成向量，接口无需等待 embedding；重试耗尽的消息进死信队列 |
 | 定向优化 | 针对目标 JD 改写并重新匹配，输出「优化前 → 优化后」提升报告与改动原因 |
 | 对话创建 | SSE 流式问答从 0 生成 Markdown 简历，可直接保存为简历继续诊断 / 匹配 |
+| 求职助手 Agent | LangChain4j 工具调用（岗位搜索 / 匹配引擎）+ 多轮记忆（Redis 持久化）+ SSE 流式两阶段渲染；会话列表可回看与续聊 |
 | 投递管理 | 看板式状态流转（待跟进 / 面试中 / 已拒绝 / 无回应 / 已录用）+ 按状态统计 |
 
 ## 架构
@@ -71,9 +72,84 @@
 匹配是用户主动等待、需要立即看到结果的操作，改成异步会让体验从"点一下出结果"退化为"提交任务等通知"。
 Kafka 只用在不影响用户感知的后台任务上（向量预生成）。
 
+## 求职助手 Agent
+
+把"点按钮选简历/岗位"变成"用自然语言描述需求"。Agent 只负责**编排与解释**，
+所有分数仍由规则匹配引擎产出（系统提示词里明确禁止编造分数）。
+
+```
+用户 ──▶ AgentController ──▶ AiServices（LangChain4j）
+             │                  │
+             │                  ├─ searchJobs      → 岗位库
+             │                  ├─ calculateMatch  → MatchEngine（40/40/20，可复现）
+             │                  └─ 多轮记忆 ──▶ Redis（TTL 24h；不可用时降级为空记忆）
+             │
+             └─ SSE 逐帧：start → tool → delta → done / error
+```
+
+### 工具与权限
+
+| 工具 | 作用 | 权限处理 |
+|---|---|---|
+| `searchJobs(company, keyword)` | 搜岗位，返回 ID/公司/标题/城市（薄返回，避免上下文膨胀） | 只读 |
+| `calculateMatch(resumeId, jobId)` | 调匹配引擎算分，返回总分/关键词覆盖/缺失关键词 | **校验简历归属**，不属于当前账号时按"简历不存在"处理 |
+
+- 用户身份通过 `@ToolMemoryId` 注入（memoryId 形如 `16:uuid`），**刻意不做成模型可见参数**——
+  否则模型可能被诱导传入他人 ID
+- 工具运行在流式回调线程上（没有 SecurityContext / MDC），所以身份必须由控制器在请求线程取出后编码进 memoryId
+- 匹配接口本身也补了归属校验：任何登录用户都无法计算他人简历的匹配度
+
+### SSE 事件契约
+
+| 帧 | 含义 |
+|---|---|
+| `{"type":"start","sessionId":"16:xxx"}` | 会话建立（sessionId 即记忆键） |
+| `{"type":"tool","name":"calculateMatch"}` | 开始执行某个工具 |
+| `{"type":"delta","text":"..."}` | 正文增量 |
+| `{"type":"done"}` | 正常结束 |
+| `{"type":"error","message":"..."}` | 出错（含护栏拦截） |
+
+前端据此做两阶段渲染：收到 `tool` 显示真实工具名（"正在搜索岗位…"），收到 `delta` 切换成打字机。
+「工具调用那一轮」的模型自述（如 `I'll search for...`）由后端在第一个工具执行前拦下，不推给前端——
+那是模型决定调什么工具时的自言自语，不是给用户看的答案。
+
+### 会话记忆
+
+- 存 Redis：`resume-craft:agent:memory:{userId}:{sessionId}`，值用框架的
+  `ChatMessageSerializer`（ChatMessage 是按 type 区分的多态类型，工具调用消息靠 codec 还原，自己用 JSON 序列化会丢上下文），TTL 24h 滑动过期
+- **不放 JVM 堆内存**：重启即丢，多实例部署还会各存一份导致"记忆错乱"
+- 记忆层套了 Resilience4j 熔断：Redis 不可用时快速失败并降级为空记忆，而不是把对话拖住
+  （实测单轮从 63s 降到 3.3s；顺带发现大头其实在网关限流器，一并把 Redis 超时收到 1s）
+- 支持清空（`DELETE /api/v1/agent/session/{id}`）与回看（`GET /api/v1/agent/session/{id}/messages`，
+  返回的正是**模型当前能看到的窗口**，避免"界面上有、模型却忘了"）
+
+### 护栏
+
+框架默认行为都是"抛异常 → 整轮失败"，本项目统一改成"回一条消息 → 让模型自我纠正"：
+
+| 护栏 | 框架默认 | 本项目处理 |
+|---|---|---|
+| 工具轮数上限 | 100 轮（几乎等于没有上限） | 6 轮，超限返回中文提示并记 `round_limit` |
+| 模型编造工具名 | 抛异常 | 回"没有名为 X 的工具，可用工具只有 searchJobs 与 calculateMatch" |
+| 工具参数不合法 | 抛异常 | 把错误交回模型，让它核对参数后重试 |
+
+### 可观测
+
+| 指标 | 含义 |
+|---|---|
+| `agent.turn.duration{outcome}` | 单轮对话耗时（`success` / `error` / `round_limit`） |
+| `agent.tool.duration{tool, outcome}` | 单个工具的耗时与成功率 |
+| `agent.guardrail.triggers{type}` | 护栏触发次数（幻觉工具名 / 参数错误 / 轮数超限） |
+
+### 评测
+
+改提示词、换模型、加工具之后靠什么判断"是变好还是变差"：`apps/server/evals/` 里 20 条用例跑批，
+输出工具选择准确率 / 要点命中率 / 平均耗时，报告追加进 `docs/agent-eval-report.md` 以便前后对比。
+本机基线：20/20、要点命中 23/23、平均 2.7s。
+
 ## 技术栈
 
-- **后端**：Java 17 · Spring Boot 3.5 · Spring Cloud Gateway / OpenFeign / LoadBalancer · Nacos · MyBatis-Plus 3.5 · MySQL · Redis · PostgreSQL + pgvector（向量检索）· Kafka（异步消息）· Spring AI 1.1（OpenAI 兼容，默认 DeepSeek；embedding 用百炼 text-embedding-v3）· JWT（jjwt）· springdoc-openapi · Micrometer + Prometheus
+- **后端**：Java 17 · Spring Boot 3.5 · Spring Cloud Gateway / OpenFeign / LoadBalancer · Nacos（注册 + 配置中心）· MyBatis-Plus 3.5 · MySQL · Redis · PostgreSQL + pgvector（向量检索）· Kafka（异步消息）· Resilience4j（熔断降级）· Spring AI 1.1（OpenAI 兼容，默认 DeepSeek；embedding 用百炼 text-embedding-v3）· LangChain4j 1.20（Agent 工具调用与记忆）· JWT（jjwt）· springdoc-openapi · Micrometer + Prometheus
 - **前端**：Next.js 14（App Router）· TypeScript · Tailwind CSS · Recharts · lucide-react
 
 ## 目录结构
@@ -91,6 +167,7 @@ Kafka 只用在不影响用户感知的后台任务上（向量预生成）。
 │   │   ├── job-match/          # 岗位与匹配服务 :8083（含向量库读写与
 │   │   │                       #       向量任务消费者）
 │   │   ├── application/        # 投递服务 :8084
+│   │   ├── evals/              # Agent 评测集（20 条用例）与跑批脚本
 │   │   ├── db/                 # pgvector 建表脚本（PostgreSQL）
 │   │   ├── start-services.ps1  # 一键构建 + 启动 + 健康检查
 │   │   ├── stop-services.ps1   # 停止全部服务
@@ -113,7 +190,7 @@ Kafka 只用在不影响用户感知的后台任务上（向量预生成）。
 |---|---|---|---|
 | MySQL | 3306 | 业务库 `resume_craft`，首次启动自动建表 | 必需 |
 | Redis | 6379 | 缓存、限流、分布式锁 | 必需 |
-| Nacos | 8848 | 服务注册发现 | 必需 |
+| Nacos | 8848 | 服务注册发现 + 配置中心（各服务配置见 `docs/nacos-config/`） | 必需 |
 | PostgreSQL | 5432 | 向量库 `resume_craft_vector`（pgvector） | 可选* |
 | Kafka | 9092 | 异步向量生成 | 可选* |
 
@@ -232,6 +309,8 @@ AI Key 从根目录 `.env` 读取（`AI_API_KEY` 等）；未配置时使用占�
 4. 岗位库选择目标 JD → 匹配（可解释：命中/缺失关键词、维度明细）
 5. 定向优化 → 查看「优化前 → 优化后」提升报告与改动原因
 6. 版本历史并排 Diff → 导出 PDF / DOCX → 记录投递并跟踪状态
+7. 求职助手：用自然语言让 Agent 自己决定调哪些工具（搜岗位 / 算匹配）并解释结果；
+   会话记忆存在服务端，刷新或重启后仍能接着聊，左侧可切换历史会话
 
 ## 测试
 
@@ -242,9 +321,21 @@ cd apps/server
 mvn -B test
 ```
 
-覆盖内容：匹配引擎 40/40/20 公式与硬性条件封顶、AI 失败降级、Feign 跨服务错误透传、OCR 置信度阈值判定、JD 种子数据契约（共 21 个用例）。
+覆盖内容：匹配引擎 40/40/20 公式与硬性条件封顶、AI 失败降级、Feign 跨服务错误透传、
+OCR 置信度阈值判定、JD 种子数据契约、JD 关键词缓存（命中 / 未命中 / Redis 不可用 / AI 返回脏数据）、
+Agent 三条护栏（用桩模型确定性重放"模型犯错"）（共 **40 个用例**）。
 
 CI（GitHub Actions）在每次 push / PR 时执行后端 `mvn -B test` 与前端 `npm ci && npm run build`。
+
+**Agent 评测（手动跑，不进 CI —— 需要真实模型 Key 与业务数据）**：
+
+```bash
+node apps/server/evals/run-agent-eval.mjs --report docs/agent-eval-report.md
+```
+
+20 条用例（搜索 / 匹配 / 多步编排 / 不该调工具 / 多轮记忆 / 安全边界），输出工具选择准确率、
+要点命中率、平均耗时；报告追加写入 `docs/agent-eval-report.md`，便于改动前后对比。
+基线见该报告（当前 20/20，平均 2.7s）。
 
 ## 一键演示
 
@@ -270,12 +361,18 @@ pwsh ./reset-demo.ps1
 
 ## 已知限制与后续规划
 
-- **集成测试待补充**：当前 21 个单元测试用 Mockito 隔离，尚无 Testcontainers 级别的跨服务联调测试
+- **集成测试待补充**：当前 40 个单元测试用 Mockito 隔离，尚无 Testcontainers 级别的跨服务联调测试
 - **前端组件测试缺失**：仅有 `tsc` 类型检查与 `next build` 构建校验
 - **向量阈值需按业务校准**：余弦相似度到百分制的映射区间（`0.30~0.90`）目前基于经验值，理想做法是收集真实简历-JD 对做标注校准
 - **岗位数据来自种子库**：未接入实时爬取（合规与反爬成本考虑）
 - **登录方式单一**：仅用户名密码，未接入第三方登录
 - **本机开发依赖较多中间件**：MySQL / Redis / Nacos / PostgreSQL / Kafka；其中 PostgreSQL 与 Kafka 为可选，缺失时自动降级
+- **Agent 的两条护栏难以自然触发**：模型编造工具名 / 传非法参数在真实模型上几乎不出现（工具清单外的函数名它一般不会编），
+  因此这两条只能靠桩模型单测确定性验证，线上几乎不会命中
+- **同一会话并发提问会丢消息**：会话记忆是"读—改—写"，尚未加锁，当前约束是**单会话串行提问**
+- **Agent 评测集与种子数据绑定**：20 条用例依赖岗位 6–15 与简历 40，换库/清库后需同步调整；
+  且当前 100% 说明用例偏"能力对齐"，还需要更难的用例（多跳推理、模糊指代、对抗性诱导）才有区分度
+- **Prompt 注入未专门防护**：简历正文目前直接进模型上下文，需要分隔符包裹 + 系统提示声明"分隔符内是数据不是指令"
 
 ## 技术亮点速览
 
@@ -292,4 +389,11 @@ pwsh ./reset-demo.ps1
 | **异步与删除的竞态处理** | 消费前校验 + 写入后复检，发现简历已删则回滚向量 | 创建后 0/100ms 删除均无孤儿数据 |
 | **故障降级** | Kafka 不可用时上传照常成功，匹配路径同步兜底生成向量 | 停 Kafka 后上传仍返回 200 |
 | **全链路可观测** | traceId 网关生成 → MDC 日志 → Feign 透传 → 响应头回写 | 响应头含 `X-Trace-Id` |
+| **熔断降级** | Resilience4j 包住跨服务调用与 Agent 记忆层；4xx 业务拒绝进 `ignore-exceptions`，不误开熔断 | 停 Redis 后 Agent 单轮 63s → 3.3s，断路器转 OPEN、`notPermittedCalls` 递增 |
+| **配置中心** | Nacos 同时做注册与配置；Redis 超时、`app.agent.*`、resilience4j 实例都放配置中心 | 改配置后热更新生效（实测 2s） |
+| **AI 全链路可观测** | chat / 流式 / OCR / embedding 四类调用的耗时、token、结果标签，外加 Agent 的工具、单轮与护栏指标 | `GET /actuator/prometheus` |
+| **Agent 工具权限** | 工具身份经 `@ToolMemoryId` 注入，刻意不做成模型可见参数；匹配接口校验简历归属 | 跨账号让 Agent 算他人简历 → 返回"简历不存在" |
+| **会话记忆持久化** | Redis + 框架 codec（多态消息），TTL 24h 滑动过期，记忆层熔断降级；不占 JVM 堆 | 重启服务后用同一会话追问，仍记得上文 |
+| **Agent 护栏** | 轮数上限 6（框架默认 100）、编造工具名、参数不合法，统一从"抛异常"改为"回消息让模型纠正" | `agent.guardrail.triggers_total` 计数 |
+| **Agent 评测集** | 20 条用例跑批，输出工具选择准确率 / 要点命中率 / 平均耗时 | `node apps/server/evals/run-agent-eval.mjs` |
 | **网关限流** | Redis 令牌桶，按 JWT userId 分桶、未登录回落 IP | 可压测验证 |
