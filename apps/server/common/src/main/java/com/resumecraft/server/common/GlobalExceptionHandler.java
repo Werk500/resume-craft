@@ -1,10 +1,13 @@
 package com.resumecraft.server.common;
 
 import com.resumecraft.server.common.exception.ServiceUnavailableException;
+import com.resumecraft.server.common.exception.SessionBusyException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -52,6 +55,30 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleServiceUnavailable(ServiceUnavailableException e) {
         log.warn("下游服务不可用（熔断降级）: {}", e.getMessage());
         return ApiResponse.error(503, e.getMessage());
+    }
+
+    /**
+     * 处理「同一会话并发提交」（会话锁被占用）。
+     *
+     * <h3>为什么这里不能像其它分支那样返回 ApiResponse 信封</h3>
+     * 求职助手的流式接口是 {@code produces = text/event-stream}，Spring 会把
+     * text/event-stream 记成该请求的"可生产媒体类型"。此时如果
+     * {@code @ExceptionHandler} 想按 JSON 写信封，Jackson 转换器不支持
+     * text/event-stream，内容协商会抛
+     * {@code HttpMediaTypeNotAcceptableException}，<b>处理器自己也被拖垮</b>，
+     * 原来的异常继续往外抛 —— 浏览器最终看到 500 + 空响应体
+     * （而同步接口因为没有 produces 限制，同一段代码能正常返回 400 信封）。
+     *
+     * <p>修法是显式给出 {@code Content-Type: text/plain}：Spring 一旦发现响应头
+     * 已经被显式设置，就直接跳过内容协商，用 String 转换器写正文。
+     * 于是同步和流式两条通道都能把这句人话原样带回给用户。
+     */
+    @ExceptionHandler(SessionBusyException.class)
+    public ResponseEntity<String> handleSessionBusy(SessionBusyException e) {
+        log.info("会话正忙，拒绝并发消息: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(e.getMessage());
     }
 
     /**

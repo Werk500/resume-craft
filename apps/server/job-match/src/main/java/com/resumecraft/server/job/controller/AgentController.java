@@ -2,9 +2,11 @@ package com.resumecraft.server.job.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.common.exception.SessionBusyException;
 import com.resumecraft.server.common.metrics.AiObservability;
 import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.agent.AgentMemoryId;
+import com.resumecraft.server.job.agent.AgentSessionLock;
 import com.resumecraft.server.job.agent.JobAgent;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -42,6 +44,8 @@ public class AgentController {
     private ChatMemoryStore chatMemoryStore;
     @Resource
     private AiObservability aiObservability;
+    @Resource
+    private AgentSessionLock agentSessionLock;
 
     private static final String ROUND_LIMIT_HINT =
             "我已经连续调用多次工具仍未得出结论。请把问题拆小一点（例如先指定一个岗位 ID），我再继续。";
@@ -65,6 +69,12 @@ public class AgentController {
         Long userId = AuthContext.getUserId();
         String memoryId = AgentMemoryId.normalize(userId, body.get("sessionId"));
 
+        String lock = agentSessionLock.tryLock(memoryId);
+        if(lock==null) {
+            // 全局异常处理器映射成 409 + 纯文本，前端原样显示这句话
+            throw new SessionBusyException("这个会话正在处理上一条消息，请等它回复完再发");
+        }
+
         long start = System.currentTimeMillis();
         String outcome = "success";
         String answer;
@@ -80,6 +90,7 @@ public class AgentController {
             outcome = "error";
             throw e;
         }finally {
+            agentSessionLock.unlock(memoryId, lock);
             aiObservability.recordAgentTurn(outcome,
                     Duration.ofMillis(System.currentTimeMillis() - start));
         }
@@ -99,6 +110,13 @@ public class AgentController {
 
         Long userId = AuthContext.getUserId();
         String memoryId = AgentMemoryId.normalize(userId, body.get("sessionId"));
+
+        String lockToken = agentSessionLock.tryLock(memoryId);
+        if (lockToken == null) {
+            // 注意：这里抛异常时响应还没开始写，所以能安全地返回 409；
+            // 一旦 Flux 已经订阅、SSE 已经开始推送，就只能靠流内的 error 帧了。
+            throw new SessionBusyException("这个会话正在处理上一条消息，请等它回复完再发");
+        }
         /*
          * 关于「工具调用那一轮」的 token：
          *
@@ -154,11 +172,14 @@ public class AgentController {
                             // 看起来像"这一路全是失败"（流式是前端主路径，漏了它等于没测）
                             aiObservability.recordAgentTurn("success",
                                     Duration.ofMillis(System.currentTimeMillis() - start));
+                            agentSessionLock.unlock(memoryId, lockToken);
                             sink.complete();// 再关闭流
                         })
                         .onError(error -> {
+                            // 带上异常对象（栈）而不是只记 message：像 "messages cannot be null
+                            // or empty" 这种来自框架/服务端的报错，只有栈能定位到真正的调用点
                             log.warn("Agent 流式对话失败: sessionId={}, err={}",
-                                    memoryId, error.getMessage());
+                                    memoryId, error.getMessage(), error);
 
                             if(isRoundLimitError(error)) {
                                 sink.next(frame("error", Map.of("message", ROUND_LIMIT_HINT)));
@@ -172,12 +193,14 @@ public class AgentController {
                                         Duration.ofMillis(System.currentTimeMillis() - start));
                             }
                             sink.complete();
+                            agentSessionLock.unlock(memoryId, lockToken);
                         })
                         .start();
             }catch (Exception e) {
                 log.error("启动 Agent 流式对话失败", e);
                 sink.next(frame("error", Map.of("message", "启动对话失败")));
                 sink.complete();
+                agentSessionLock.unlock(memoryId, lockToken);
 
                 aiObservability.recordAgentTurn("error",
                         Duration.ofMillis(System.currentTimeMillis() - start));

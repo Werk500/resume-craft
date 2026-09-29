@@ -60,10 +60,23 @@ export async function askAgent(message: string, sessionId?: string): Promise<Age
     requireLogin();
   }
 
-  const json = await response.json().catch(() => null);
+  /*
+   * 错误响应有两种形态：
+   * - 普通参数错误走 GlobalExceptionHandler，是 { code, message, data } 的 JSON 信封
+   * - 「会话忙」走的是 409 + text/plain（后端刻意绕开 SSE 通道的内容协商，
+   *   原因见 SessionBusyException 的注释）
+   * 所以先取原始文本再尝试按 JSON 解析，两种形态都能拿到 message。
+   */
+  const raw = await response.text().catch(() => "");
+  let json: { code?: number; message?: string; data?: AgentReply } | null = null;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    json = null;
+  }
 
   if (!response.ok || !json || json.code !== 200) {
-    throw new Error(json?.message || `请求失败 (HTTP ${response.status})`);
+    throw new Error(json?.message || raw.trim() || `请求失败 (HTTP ${response.status})`);
   }
 
   return json.data as AgentReply;

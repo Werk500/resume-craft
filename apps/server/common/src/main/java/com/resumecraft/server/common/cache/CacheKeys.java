@@ -80,4 +80,8 @@ public final class CacheKeys {
     public static String agentMemory(String memoryId) {
         return PREFIX + "agent:memory:" + memoryId;
     }
+
+    public static String agentSessionLock(String memoryId) {
+        return PREFIX + "agent:session-lock:" + memoryId;
+    }
 }
