@@ -247,7 +247,7 @@ function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
 
           <p className="mt-2 text-[11px] leading-relaxed text-blue-600/80">
             每轮覆盖率都由后端的规则引擎重新计算（不调用模型、结果可复现）；只有分数真的上涨才会保留，
-            否则回滚到上一版并提前结束，避免"越改越差"。
+            否则回滚到上一版并提前结束，避免「越改越差」。
           </p>
         </section>
       )}
