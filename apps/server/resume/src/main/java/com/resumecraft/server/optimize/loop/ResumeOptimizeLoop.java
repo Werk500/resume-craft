@@ -5,14 +5,13 @@ import com.resumecraft.server.ai.AiService;
 import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.common.feign.dto.ScoreResponse;
 import com.resumecraft.server.job.domain.Job;
-import com.resumecraft.server.optimize.dto.AddedSkill;
-import com.resumecraft.server.optimize.dto.OptimizeIteration;
-import com.resumecraft.server.optimize.dto.OptimizeLoopResult;
-import com.resumecraft.server.optimize.dto.RewriteResult;
+import com.resumecraft.server.optimize.dto.*;
 import com.resumecraft.server.optimize.guard.FabricationGuard;
+import com.resumecraft.server.optimize.guard.OverstatementChecker;
 import com.resumecraft.server.resume.gateway.JobMatchServiceGateway;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,6 +20,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 简历优化闭环：基线打分 -> 改写 -> 复算 -> 保留最优，直到达标或轮数用尽。
@@ -44,6 +45,10 @@ public class ResumeOptimizeLoop {
     private FabricationGuard fabricationGuard;
     @Resource
     private ObjectMapper objectMapper;
+    @Resource
+    private ThreadPoolTaskExecutor aiExecutor;
+    @Resource
+    private OverstatementChecker overstatementChecker;
 
     public OptimizeLoopResult run(String baseText, Job job, int maxRounds, double minGain) {
         ScoreResponse base = jobMatchServiceGateway.score(baseText, job.getId());
@@ -56,14 +61,14 @@ public class ResumeOptimizeLoop {
         }
 
         double baseline = nz(base.getKeywordCoverage());
-        String best = baseText;
-        String current = baseText;
-        double bestCov = baseline;
+        String best = baseText;// 目前最优的简历文本，初始 = 原文
+        String current = baseText;// 下一轮改写的输入，初始 = 原文
+        double bestCov = baseline;// 目前最优覆盖率，初始 = 基线
 
         List<String> missing = base.getMissingKeywords() == null
-                ? List.of() : base.getMissingKeywords();
+                ? List.of() : base.getMissingKeywords();// 当前缺的词
 
-        List<OptimizeIteration> trace = new ArrayList<>();
+        List<OptimizeIteration> trace = new ArrayList<>();// 每轮打分记录
 
         for (int round = 1; round <= maxRounds; round++) {
 
@@ -108,25 +113,48 @@ public class ResumeOptimizeLoop {
             missing = s.getMissingKeywords();
         }
 
-        // 事实核查：只审"最终采纳的那一版"，且确实改动了才审
-        List<AddedSkill> pending = new ArrayList<>();
+        // 循环结束后（保持"只审被采纳的版本"这个条件）
+        List<AddedSkill> pendingSkills = new ArrayList<>();
+        List<Overstatement> pendingClaims = new ArrayList<>();
+
         if(bestCov > baseline && !best.equals(baseText)){
-            List<AddedSkill> claimed = auditAddedSkills(baseText, best);
-            if (!claimed.isEmpty()) {
-                pending = fabricationGuard.verify(baseText, claimed);   // ← guard 在这里生效
-            }
+            String finalBest = best;
+            CompletableFuture<List<AddedSkill>> skillsFuture = CompletableFuture.supplyAsync(
+                    () -> auditAddedSkills(baseText, finalBest), aiExecutor);// 内部已做 guard 校验
+            CompletableFuture<List<Overstatement>> claimsFuture = CompletableFuture.supplyAsync(
+                    () -> auditOverstatements(baseText, finalBest), aiExecutor);
+
+            pendingSkills = joinSafely(skillsFuture, "技能依据审计");
+            pendingClaims = joinSafely(claimsFuture, "夸大审计");
         }
 
         log.info("优化闭环结束: 轮数={}, 基线={}, 最终={}, 提升={}, 待确认新增={}",
-                trace.size(), baseline, bestCov, Math.round((bestCov - baseline) * 10) / 10.0, pending.size());
+                trace.size(), baseline, bestCov, Math.round((bestCov - baseline) * 10) / 10.0, pendingSkills.size());
 
         return OptimizeLoopResult.builder()
-                .bestContent(best)
-                .baselineCoverage(baseline)
-                .finalCoverage(bestCov)
-                .iterations(trace)
-                .pendingSkills(pending)
+                .bestContent(best)// 历史最优文本
+                .baselineCoverage(baseline)// 基线覆盖率
+                .finalCoverage(bestCov)// 最终最优覆盖率
+                .iterations(trace)// 完整迭代轨迹
+                .pendingSkills(pendingSkills)
+                .pendingClaims(pendingClaims)
                 .build();
+    }
+
+    /** 审计 B：读出来 → OverstatementChecker 核实 */
+    private List<Overstatement> auditOverstatements(String original, String rewritten) {
+        try {
+            String raw = aiService.chat(PromptTemplates.AUDIT_OVERSTATEMENT_SYSTEM,
+                    PromptTemplates.auditOverstatementUser(original, rewritten));
+            OverstatementAuditResult result =
+                    objectMapper.readValue(extractJson(raw), OverstatementAuditResult.class);
+            List<Overstatement> claims = result.getOverstatements() == null ? List.of() : result.getOverstatements();
+            return overstatementChecker.check(rewritten, claims);
+        } catch (Exception e) {
+            log.warn("夸大审计调用失败，跳过: {}", e.getMessage());
+            return List.of();
+        }
+
     }
 
 
@@ -137,7 +165,8 @@ public class ResumeOptimizeLoop {
                     PromptTemplates.auditAddedSkillsUser(originalText, rewrittenText));
             String json = extractJson(raw);
             RewriteResult result = objectMapper.readValue(json, RewriteResult.class);
-            return result.getAddedSkills() == null ? List.of() : result.getAddedSkills();
+            List<AddedSkill> claimed = result.getAddedSkills() == null ? List.of() : result.getAddedSkills();
+            return fabricationGuard.verify(originalText, claimed);
         } catch (Exception e) {
             log.warn("事实核查调用失败，跳过待确认列表: {}", e.getMessage());
             return List.of();
@@ -213,5 +242,15 @@ public class ResumeOptimizeLoop {
             }
         }
         return added;
+    }
+
+    /** 并行任务取结果：超时/异常都只记日志并返回空列表，绝不拖垮主流程 */
+    private <T> List<T> joinSafely(CompletableFuture<List<T>> future, String name) {
+        try {
+            return future.get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("{}失败（不影响优化结果）: {}", name, e.getMessage());
+            return List.of();
+        }
     }
 }

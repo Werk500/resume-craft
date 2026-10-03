@@ -49,6 +49,9 @@ public class OptimizeLoopResult {
     @Builder.Default
     private List<AddedSkill> pendingSkills = new ArrayList<>();
 
+    @Builder.Default
+    private List<Overstatement> pendingClaims = new ArrayList<>();
+
     /**
      * 是否降级执行：打分服务不可用（熔断/超时）时，闭环退化为"只改写一次"。
      * 此时 bestContent 是单次改写的结果，覆盖率字段为 null。

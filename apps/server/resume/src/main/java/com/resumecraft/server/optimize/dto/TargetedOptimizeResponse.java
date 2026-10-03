@@ -39,4 +39,7 @@ public class TargetedOptimizeResponse {
     /** 待用户确认的新增技能（模型写了、但原文找不到依据，可能是编造） */
     @Builder.Default
     private List<AddedSkill> pendingSkills = new ArrayList<>();
+
+    @Builder.Default
+    private List<Overstatement> pendingClaims = new ArrayList<>();
 }

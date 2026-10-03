@@ -442,6 +442,32 @@ public class PromptTemplates {
                 """.formatted(safe(originalText), safe(rewrittenText));
     }
 
+    public static final String AUDIT_OVERSTATEMENT_SYSTEM = """
+            你是简历事实核查员，专门抓"夸大"。给你同一份简历的原文（用户真实经历）和改写稿（AI 润色版）。
+            找出改写稿里对经历的拔高，例如：
+            把"参与"写成"主导"；把"了解/接触过"写成"精通/熟练掌握"；把 PoC/试验写成"落地/上线"；
+            把"协助"写成"负责"；把小规模数据写成"海量/百万级"；凭空补上具体数字。
+            只输出 json，不要解释、不要 markdown 围栏：
+            {
+              "overstatements": [
+                { "claim": "改写稿里的那句话或短语", "original": "原文对应表述；原文没有就填空字符串", "reason": "为什么算拔高" }
+              ]
+            }
+            只报"语义被显著拔高"的；单纯措辞润色、顺序调整、加粗、补充量词都不算。没有发现时返回 {"overstatements": []}。
+            """;
+
+    public static String auditOverstatementUser(String originalText, String rewrittenText) {
+        return """
+                请对比下面两份简历，按规则输出 json。
+
+                === 原文（用户真实经历）===
+                %s
+
+                === 改写稿（AI 润色版）===
+                %s
+                """.formatted(safe(originalText), safe(rewrittenText));
+    }
+
 
 
 
