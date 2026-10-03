@@ -4,11 +4,19 @@
 # Parameters:
 #   -SkipBuild   # Skip mvn package
 #   -NoGateway   # Start business services only (debug mode)
+#   -NoWait      # Start and return immediately (skip health checks);
+#                # then use wait-services.ps1 to poll until they are UP
+#
+# 说明：本脚本用「cmd 内部重定向」写日志，而不是 Start-Process 的
+# -RedirectStandardOutput/-RedirectStandardError。后者会让 .NET 创建可继承的
+# 管道句柄，java 子进程会一直持有调用方的 stdout 管道，导致父脚本/CI 在脚本
+# 跑完后仍然收不到 EOF 而卡住（实测多等 12s 以上，服务不关就一直不返回）。
 # ============================================================
 
 param(
     [switch]$SkipBuild,
-    [switch]$NoGateway
+    [switch]$NoGateway,
+    [switch]$NoWait
 )
 
 # ---- Helper functions ----
@@ -237,10 +245,16 @@ foreach ($s in $services) {
     # Start service
     $outLog = Join-Path $PSScriptRoot "logs\$($s.name).out.log"
     $errLog = Join-Path $PSScriptRoot "logs\$($s.name).err.log"
+    $launcher = Join-Path $PSScriptRoot "logs\$($s.name).launch.cmd"
     
     Write-Info "Starting $($s.name) on port $($s.port)..."
     
-    $process = Start-Process -FilePath $javaExe -ArgumentList "-jar", $jarPath -WindowStyle Hidden -PassThru -RedirectStandardOutput $outLog -RedirectStandardError $errLog
+    # 让 cmd 自己打开日志文件做重定向：这样 Start-Process 不需要创建可继承的
+    # 管道句柄，调用方在脚本结束时立刻返回（详见文件头注释）
+    $launcherContent = "@echo off`r`n`"$javaExe`" -jar `"$jarPath`" > `"$outLog`" 2> `"$errLog`"`r`n"
+    [System.IO.File]::WriteAllText($launcher, $launcherContent, [System.Text.Encoding]::ASCII)
+    
+    $process = Start-Process -FilePath $launcher -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -PassThru
     
     $processes += @{
         Name = $s.name
@@ -253,27 +267,32 @@ foreach ($s in $services) {
     Start-Sleep -Milliseconds 500
 }
 
-Write-Info "All services started. Waiting for health checks..."
-
-# 7. Health checks (wait for each service)
 $healthResults = @{}
-$allHealthy = $true
 
-foreach ($s in $services) {
-    $result = Wait-ForHealth -Name $s.name -Port $s.port -TimeoutSeconds 90
-    $healthResults[$s.name] = $result
-    if (-not $result) {
-        $allHealthy = $false
+if ($NoWait) {
+    Write-Info "-NoWait: skipping health checks. Use wait-services.ps1 to poll until UP."
+} else {
+    Write-Info "All services started. Waiting for health checks..."
+
+    # 7. Health checks (wait for each service)
+    $allHealthy = $true
+
+    foreach ($s in $services) {
+        $result = Wait-ForHealth -Name $s.name -Port $s.port -TimeoutSeconds 90
+        $healthResults[$s.name] = $result
+        if (-not $result) {
+            $allHealthy = $false
+        }
     }
-}
 
-if (-not $allHealthy) {
-    Write-ErrorExit "One or more services failed health check"
-}
+    if (-not $allHealthy) {
+        Write-ErrorExit "One or more services failed health check"
+    }
 
-# 8. Wait for Nacos registration
-Write-Info "Waiting 8 seconds for services to register in Nacos..."
-Start-Sleep -Seconds 8
+    # 8. Wait for Nacos registration
+    Write-Info "Waiting 8 seconds for services to register in Nacos..."
+    Start-Sleep -Seconds 8
+}
 
 # 9. Summary
 Write-Host ""
@@ -287,13 +306,15 @@ $serviceList = $services | ForEach-Object {
     $port = $_.port
     $proc = ($processes | Where-Object { $_.Name -eq $name }).Process
     $procId = if ($proc) { $proc.Id } else { "N/A" }
-    $health = if ($healthResults[$name]) { "UP" } else { "DOWN" }
+    $health = if ($NoWait) { "?" } elseif ($healthResults[$name]) { "UP" } else { "DOWN" }
     
-    Write-Host ("{0,-20} :{1,-6} PID:{2,-8} Health: {3}" -f $name, $port, $procId, $health) -ForegroundColor $(if ($health -eq "UP") { "Green" } else { "Red" })
+    $color = if ($health -eq "UP") { "Green" } elseif ($health -eq "?") { "Yellow" } else { "Red" }
+    Write-Host ("{0,-20} :{1,-6} PID:{2,-8} Health: {3}" -f $name, $port, $procId, $health) -ForegroundColor $color
 }
 
 Write-Host ""
 Write-Host "Total services: $($services.Count)" -ForegroundColor Yellow
+Write-Host "PID above is the cmd wrapper; use stop-services.ps1 (it stops by port) to shut down" -ForegroundColor DarkGray
 if (-not $NoGateway) {
     Write-Host "Gateway URL: http://localhost:8080" -ForegroundColor Yellow
 }

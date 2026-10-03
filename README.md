@@ -189,7 +189,8 @@ JD 可能是抓来的，里面完全可以写一句"忽略以上所有指令，�
 │   │   ├── application/        # 投递服务 :8084
 │   │   ├── evals/              # Agent 评测集（20 条用例）与跑批脚本
 │   │   ├── db/                 # pgvector 建表脚本（PostgreSQL）
-│   │   ├── start-services.ps1  # 一键构建 + 启动 + 健康检查
+│   │   ├── start-services.ps1  # 一键构建 + 启动（-NoWait 可只起不等待健康检查）
+│   │   ├── wait-services.ps1   # 轮询 /actuator/health 直到全部 UP
 │   │   ├── stop-services.ps1   # 停止全部服务
 │   │   ├── demo.ps1            # 一键演示完整闭环（诊断/匹配/优化/投递）
 │   │   ├── reset-demo.ps1      # 重置演示账号数据 + 清理缓存
@@ -263,7 +264,17 @@ cp .env.example .env
 cd apps/server
 pwsh ./start-services.ps1          # 构建 + 停旧进程 + 启动 5 个服务 + 健康检查
 pwsh ./start-services.ps1 -SkipBuild   # 跳过构建（jar 已存在时）
+
+# 脚本/CI 里推荐分两步：起完立刻返回，再单独轮询健康
+pwsh ./start-services.ps1 -SkipBuild -NoWait
+pwsh ./wait-services.ps1               # 轮询到 5 个服务全部 UP（默认 120s 超时）
 ```
+
+> 为什么分两步：`start-services.ps1` 内部用 cmd 重定向写日志，避免
+> `Start-Process -RedirectStandardOutput/-RedirectStandardError` 创建可继承句柄——
+> 后者会让 java 子进程持有调用方的 stdout 管道，导致父脚本（或 CI）在本脚本
+> 跑完后仍然收不到 EOF 而卡住。分两步后，start 约 7 秒返回、wait 自己轮询，
+> 任意方式调用都不会卡。
 
 启动完成后：
 

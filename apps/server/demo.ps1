@@ -53,7 +53,10 @@ function Invoke-Api {
 # ---------- 0. 服务健康检查 ----------
 if ($StartServices) {
     Info "启动后端服务（-SkipBuild）..."
-    & (Join-Path $PSScriptRoot "start-services.ps1") -SkipBuild
+    # 两步启动：先 -NoWait 起进程（立刻返回），再轮询健康，避免在 start-services
+    # 内部等健康检查时被 java 子进程的继承句柄拖住
+    & (Join-Path $PSScriptRoot "start-services.ps1") -SkipBuild -NoWait
+    & (Join-Path $PSScriptRoot "wait-services.ps1") -TimeoutSeconds 180
 }
 
 Info "检查网关健康状态: $BaseUrl"
