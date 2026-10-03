@@ -1,8 +1,12 @@
 package com.resumecraft.server.common.feign;
 
+import com.resumecraft.server.common.feign.dto.ScoreRequest;
+import com.resumecraft.server.common.feign.dto.ScoreResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 /**
  * job-match 服务内部接口客户端。
@@ -21,4 +25,7 @@ public interface JobMatchClient {
      */
     @DeleteMapping("/vector/resume/{resumeId}")
     Integer deleteResumeVectors(@PathVariable("resumeId") Long resumeId);
+
+    @PostMapping("/score")
+    ScoreResponse score(@RequestBody ScoreRequest request);
 }

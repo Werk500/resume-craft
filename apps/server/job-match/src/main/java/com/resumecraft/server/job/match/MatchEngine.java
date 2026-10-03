@@ -109,6 +109,20 @@ public class MatchEngine {
 
     }
 
+    /** 只算确定性维度：关键词覆盖 + 硬性要求。用于优化闭环的每轮打分（快、可复现、不花 token） */
+    public MatchResult executeDeterministic(String resumeText, Job job) {
+        List<String> keywords = jobKeywordProvider.keywords(job);
+        KeywordMatchResult keyword = calculateKeywordMatch(resumeText, keywords);
+        HardRequirementResult hard = calculateHardRequirements(resumeText, job);
+
+        return MatchResult.builder()
+                .keywordCoverage(round(keyword.getScore()))
+                .missingKeywords(keyword.getMissingKeywords())
+                .hardRequirementScore(round(hard.getScore()))
+                .hardRequirementPassed(hard.isAllMet())
+                .build();
+    }
+
     /**
      * 计算关键词匹配度
      */

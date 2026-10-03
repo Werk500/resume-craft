@@ -25,3 +25,7 @@ spring:
       config:
         file-extension: yml
         refresh-enabled: true
+app:
+  optimize:
+    max-rounds: 3
+    min-gain: 5.0

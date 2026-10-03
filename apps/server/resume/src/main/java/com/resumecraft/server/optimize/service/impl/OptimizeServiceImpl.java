@@ -8,7 +8,10 @@ import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.mq.AfterCommitExecutor;
+import com.resumecraft.server.optimize.dto.OptimizeIteration;
+import com.resumecraft.server.optimize.dto.OptimizeLoopResult;
 import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
+import com.resumecraft.server.optimize.loop.ResumeOptimizeLoop;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.optimize.util.MarkdownConverter;
 import com.resumecraft.server.optimize.util.PdfGenerator;
@@ -20,6 +23,7 @@ import com.resumecraft.server.resume.mq.EmbeddingTaskProducer;
 import com.resumecraft.server.resume.service.ResumeService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -34,6 +38,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 /**
  * 一键优化实现：查简历 → 拼 prompt → AI 改写 → 存 resume_version。
@@ -67,6 +72,16 @@ public class OptimizeServiceImpl implements OptimizeService {
     private ObjectMapper objectMapper;
     @Resource
     private EmbeddingTaskProducer producer;
+    @Resource
+    private ResumeOptimizeLoop resumeOptimizeLoop;
+
+    /** 优化闭环最多迭代几轮 */
+    @Value("${app.optimize.max-rounds:3}")
+    private int maxRounds;
+
+    /** 覆盖率提升多少个百分点算达标（提前结束，省 token） */
+    @Value("${app.optimize.min-gain:5.0}")
+    private double minGain;
 
     private static final String NULL_VALUE = "NULL";
     private static final long NULL_EXPIRE_MINUTES = 5;
@@ -295,38 +310,65 @@ public class OptimizeServiceImpl implements OptimizeService {
             throw new RuntimeException("系统异常，请稍后重试");
         }
 
-        //6.调用AI定向优化
-        String userPrompt = PromptTemplates.targetedOptimizeUser(
-                resume.getRawText(),
-                job.getTitle(),
-                job.getDescription(),
-                job.getRequirements()
-        );
+//        //6.调用AI定向优化
+//        String userPrompt = PromptTemplates.targetedOptimizeUser(
+//                resume.getRawText(),
+//                job.getTitle(),
+//                job.getDescription(),
+//                job.getRequirements()
+//        );
+//
+//        String aiResponse = aiService.chat(PromptTemplates.TARGETED_OPTIMIZE_SYSTEM, userPrompt);
+//
+//        log.info("定向优化 AI 响应: {}", aiResponse);
+//
+//        //7.解析 AI 返回的 JSON
+//        TargetedOptimizeResponse result = parseTargetedOptimizeResponse(aiResponse);
 
-        String aiResponse = aiService.chat(PromptTemplates.TARGETED_OPTIMIZE_SYSTEM, userPrompt);
+        OptimizeLoopResult loop = resumeOptimizeLoop.run(resume.getRawText(), job, maxRounds, minGain);
+        String optimizedResume = loop.getBestContent();
 
-        log.info("定向优化 AI 响应: {}", aiResponse);
+        if (optimizedResume == null || optimizedResume.isBlank()) {
+            throw new RuntimeException("AI 未返回有效的简历内容");
+        }
+        // 每轮的打分轨迹：覆盖率、增益、当轮缺失词、当轮新补词、是否被采纳
+        List<OptimizeIteration> iterations = loop.getIterations();
 
-        //7.解析 AI 返回的 JSON
-        TargetedOptimizeResponse result = parseTargetedOptimizeResponse(aiResponse);
+        // gaps = 最终版简历里仍缺、但岗位要的词 —— 取最后一轮打分的 missingKeywords（最接近最终状态）
+        // 兜底：一轮都没跑（首轮打分失败 / maxRounds=0）或字段为 null 时，返回不可变空列表
+        List<String> gaps = iterations.isEmpty() || iterations.get(iterations.size() - 1).getMissingKeywords() == null
+                ? List.of()
+                : iterations.get(iterations.size() - 1).getMissingKeywords();
 
-        String optimizedResume = result.getOptimizedContent();
-        List<String> gaps = result.getGaps();
-        List<String> changes = result.getChanges();
+        // changes = 各轮“新补上的关键词”汇总，全部来自规则引擎的集合差计算，而非模型自述
+        //   flatMap：把每轮的 List 摊平成一个 List；某轮为 null 时用 empty() 跳过，避免 NPE
+        //   distinct：同一个词可能多轮反复补上又丢掉，只保留一次，防止列表虚高
+        //   map：包装成可读的变更说明，供展示 / 落库
+        //   toList：返回不可变列表（Java 16+）
+        List<String> changes = iterations.stream()
+                .flatMap(it -> it.getAddedKeywords() == null
+                        ? Stream.<String>empty()
+                        : it.getAddedKeywords().stream())
+                .distinct()
+                .map(kw -> "补充关键词：" + kw)
+                .toList();
 
-        log.info("定向优化解析成功: resumeId={}, 优化后内容长度={}, gaps数={}, changes数={}",
-                resumeId,
-                optimizedResume != null ? optimizedResume.length() : 0,
-                gaps != null ? gaps.size() : 0,
-                changes != null ? changes.size() : 0);
+        log.info("优化闭环完成: resumeId={}, 轮数={}, 覆盖率 {} → {}, 内容长度={}, 未命中={}, 新覆盖={}",
+                resumeId, loop.rounds(), loop.getBaselineCoverage(), loop.getFinalCoverage(),
+                optimizedResume.length(), gaps.size(), changes.size());
 
         //8.存 resume_version（继承简历归属）
+        String scoreTag = loop.getBaselineCoverage() == null
+                ? ""
+                : String.format("(覆盖率%.1f→%.1f)", loop.getBaselineCoverage(), loop.getFinalCoverage());
+
         ResumeVersion version = ResumeVersion.builder()
                 .resumeId(resumeId)
                 .userId(resume.getUserId())
-                .versionName("定向优化-" + job.getTitle())
+                .versionName("定向优化-" + job.getTitle() + scoreTag)
                 .targetJob(job.getTitle())
                 .optimizedContent(optimizedResume)
+                .matchScore(loop.getFinalCoverage())   // 表里的 match_score 正好存闭环终值
                 .build();
         resumeVersionMapper.insert(version);
 
@@ -342,6 +384,10 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .optimizedContent(optimizedResume)
                 .gaps(gaps)
                 .changes(changes)
+                .baselineCoverage(loop.getBaselineCoverage())
+                .finalCoverage(loop.getFinalCoverage())
+                .iterations(iterations)
+                .pendingSkills(loop.getPendingSkills())
                 .build();
 
         //10. 写入缓存（有效期 1小时 + 随机偏移防雪崩）

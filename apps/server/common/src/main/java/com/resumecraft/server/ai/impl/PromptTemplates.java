@@ -3,6 +3,7 @@ package com.resumecraft.server.ai.impl;
 
 import com.resumecraft.server.ai.dto.ChatMessage;
 import com.resumecraft.server.ai.template.ResumeTemplate;
+import com.resumecraft.server.job.domain.Job;
 
 import java.util.List;
 
@@ -353,6 +354,94 @@ public class PromptTemplates {
                     "   {\"blocks\":[{\"text\":\"...\",\"confidence\":0.92,\"reason\":\"清晰\"}],\"overallConfidence\":0.9}\n" +
                     "4. reason字段说明置信度高低的原因（如：\"清晰\"、\"字迹模糊\"、\"部分遮挡\"、\"扭曲\"等）\n" +
                     "5. 将识别的文本按逻辑顺序分块，保持简历的结构完整性";
+
+    /**
+     * 优化闭环里"改写"节点的输出关键词黑名单。
+     *
+     * <p>这些词在简历原文里没有任何依据，写上去就是造假：语言类（原文没写过就不能声称会）、
+     * 或岗位所在业务领域（没做过就是没做过）。真正的兜底是 {@code FabricationGuard}，
+     * 这份清单只是先给模型一个明确边界，减少无效轮次。
+     */
+    public static final List<String> REWRITE_FORBIDDEN_KEYWORDS = List.of(
+            "Golang", "PHP", "C++", "内容电商", "直播电商", "客服系统", "SaaS平台");
+
+    public static final String TARGETED_REWRITE_SYSTEM = """
+            你是资深简历顾问，任务是在不编造事实的前提下，让简历更贴合目标岗位。
+            规则：
+            1. 只能改写已有内容：调整措辞、把已有能力写得更显式、调整顺序、突出与岗位相关的部分；
+            2. 严禁新增简历中不存在的经历、公司、项目、时间、学历；
+            3. 用户消息里"可补关键词"列出的词，只有在简历原文确有对应事实时才允许写进正文；
+            4. 用户消息里"禁止凭空出现的词"一律不要写进简历；
+            5. 只输出优化后的完整 Markdown 简历，不要 JSON、不要解释、不要代码围栏。
+            """;
+
+    /**
+     * @param current         当前简历正文（多轮迭代时是上一轮改写结果，首轮是原始文本）
+     * @param missingKeywords 岗位要求里有、简历里还没体现的词（可为空）
+     * @param job             目标岗位
+     */
+    public static String targetedRewriteUser(String current, List<String> missingKeywords, Job job) {
+        String missing = (missingKeywords == null || missingKeywords.isEmpty())
+                ? "（无）"
+                : String.join("、", missingKeywords);
+
+        return """
+                请针对以下目标岗位优化简历。
+
+                === 目标岗位 ===
+                岗位名称：%s
+                岗位描述：
+                %s
+
+                === 岗位要求里有、简历里还没体现的词（可补关键词）===
+                %s
+
+                === 禁止凭空出现的词（简历原文没有对应事实，一律不要写进简历）===
+                %s
+
+                === 简历原文（Markdown）===
+                %s
+                """.formatted(
+                safe(job == null ? null : job.getTitle()),
+                safe(job == null ? null : job.getDescription()),
+                missing,
+                String.join("、", REWRITE_FORBIDDEN_KEYWORDS),
+                safe(current));
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
+    }
+
+    /** 审计节点：对比原文与改写稿，找出"新增但原文没有依据"的技能 */
+    public static final String AUDIT_ADDED_SKILLS_SYSTEM = """
+            你是简历事实核查员。给你同一份简历的两个版本：原文（用户真实经历）和改写稿（AI 润色过）。
+            任务：找出改写稿里【新增但原文没有对应事实】的技能或关键词——它们可能是编造。
+            判断标准：
+            1. 原文里能读到等价表述（同义词、同一件事的不同说法）→ 不算编造；
+            2. 原文完全没有对应的经历/技能 → 算编造（例如原文只写了 MySQL/Redis，改写稿多了 NoSQL）；
+            3. 普通措辞润色、顺序调整、加粗、补充量词，都不算编造。
+            只输出 json，不要解释、不要 markdown 围栏：
+            {
+              "addedSkills": [
+                { "skill": "新增且无依据的技能词", "evidence": "原文里支持它的句子；确实找不到就填空字符串" }
+              ]
+            }
+            没有发现编造时返回 {"addedSkills": []}。
+            """;
+
+    public static String auditAddedSkillsUser(String originalText, String rewrittenText) {
+        return """
+                请对比下面两份简历，按规则输出 json。
+
+                === 原文（用户真实经历）===
+                %s
+
+                === 改写稿（AI 润色版）===
+                %s
+                """.formatted(safe(originalText), safe(rewrittenText));
+    }
+
 
 
 
