@@ -111,6 +111,36 @@ export interface TargetedOptimizeResponse {
   optimizedContent: string;
   gaps: string[] | null;
   changes: string[] | null;
+  /** 优化前基线覆盖率（0-100）；降级路径下为 null */
+  baselineCoverage: number | null;
+  /** 最终采纳版本的覆盖率（0-100）；降级路径下为 null */
+  finalCoverage: number | null;
+  /** 优化闭环逐轮记录 */
+  iterations: OptimizeIteration[] | null;
+  /** 待用户确认的新增技能（模型写了、但原文找不到依据） */
+  pendingSkills: AddedSkill[] | null;
+}
+
+/** 优化闭环中的一轮 */
+export interface OptimizeIteration {
+  round: number;
+  /** 这一轮候选稿的关键词覆盖率 */
+  keywordCoverage: number | null;
+  /** 相比当前最优版本的增益（可能为负 = 改差了） */
+  gain: number | null;
+  /** 这一轮结束后还缺的词 */
+  missingKeywords: string[] | null;
+  /** 这一轮新补上的词 */
+  addedKeywords: string[] | null;
+  /** 是否被采纳（false = 改差了，已回滚） */
+  kept: boolean;
+}
+
+/** 模型新写进简历、但原文里找不到依据的技能 */
+export interface AddedSkill {
+  skill: string;
+  evidence: string | null;
+  supported: boolean | null;
 }
 
 /** 投递记录 */
