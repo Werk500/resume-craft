@@ -119,6 +119,8 @@ export interface TargetedOptimizeResponse {
   iterations: OptimizeIteration[] | null;
   /** 待用户确认的新增技能（模型写了、但原文找不到依据） */
   pendingSkills: AddedSkill[] | null;
+  /** 疑似夸大的表述（模型把经历说得比原文更"重"） */
+  pendingClaims: Overstatement[] | null;
 }
 
 /** 优化闭环中的一轮 */
@@ -141,6 +143,18 @@ export interface AddedSkill {
   skill: string;
   evidence: string | null;
   supported: boolean | null;
+}
+
+/** 疑似夸大的表述 */
+export interface Overstatement {
+  /** 改写稿里的那句话或短语 */
+  claim: string;
+  /** 原文对应表述；原文没有则为空 */
+  original: string | null;
+  /** 为什么算拔高 */
+  reason: string | null;
+  /** 代码核实结果：claim 是否确实出现在改写稿里 */
+  confirmed: boolean | null;
 }
 
 /** 投递记录 */

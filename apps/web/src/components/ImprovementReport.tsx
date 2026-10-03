@@ -187,9 +187,10 @@ function ScoreBlock({
 function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
   const iterations = targeted.iterations ?? [];
   const pending = targeted.pendingSkills ?? [];
+  const claims = targeted.pendingClaims ?? [];
   const hasTrace = targeted.baselineCoverage != null || iterations.length > 0;
 
-  if (!hasTrace && pending.length === 0) {
+  if (!hasTrace && pending.length === 0 && claims.length === 0) {
     return null;
   }
 
@@ -269,6 +270,31 @@ function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
                 className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs text-amber-700"
               >
                 {s.skill}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {claims.length > 0 && (
+        <section className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3">
+          <p className="text-xs font-medium text-rose-800">
+            ⚠ 疑似夸大：{claims.length} 处表述比原文更「满」
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-rose-700">
+            AI 改写时把经历说得更重了（例如把「参与」写成「主导」、「有经验」写成「已落地」）。
+            这类问题面试时最容易被追问穿，建议按原文措辞改回去再投递。
+          </p>
+          <ul className="mt-2 space-y-2">
+            {claims.map((c, i) => (
+              <li key={i} className="rounded-lg border border-rose-200 bg-white p-2">
+                <p className="text-xs font-medium text-rose-700">改写稿：「{c.claim}」</p>
+                {c.original && (
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    原文：{c.original.length > 80 ? `${c.original.slice(0, 80)}…` : c.original}
+                  </p>
+                )}
+                {c.reason && <p className="mt-0.5 text-[11px] text-zinc-400">{c.reason}</p>}
               </li>
             ))}
           </ul>
