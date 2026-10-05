@@ -121,6 +121,21 @@ export interface TargetedOptimizeResponse {
   pendingSkills: AddedSkill[] | null;
   /** 疑似夸大的表述（模型把经历说得比原文更"重"） */
   pendingClaims: Overstatement[] | null;
+  /** 是否降级执行（打分服务不可用时只做一次改写，没有分数与核查） */
+  degraded: boolean | null;
+  /** 优化流水线的节点耗时记录 */
+  steps: StepRecord[] | null;
+}
+
+/** 优化流水线里的一个节点 */
+export interface StepRecord {
+  name: string;
+  /** 是否调用大模型 */
+  ai: boolean | null;
+  durationMs: number | null;
+  /** OK / DEGRADED / FAILED */
+  status: string | null;
+  detail: string | null;
 }
 
 /** 优化闭环中的一轮 */

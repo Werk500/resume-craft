@@ -188,9 +188,11 @@ function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
   const iterations = targeted.iterations ?? [];
   const pending = targeted.pendingSkills ?? [];
   const claims = targeted.pendingClaims ?? [];
-  const hasTrace = targeted.baselineCoverage != null || iterations.length > 0;
+  const steps = targeted.steps ?? [];
+  // 降级执行时没有分数轨迹（打分服务不可用），只显示一条说明
+  const hasTrace = !targeted.degraded && (targeted.baselineCoverage != null || iterations.length > 0);
 
-  if (!hasTrace && pending.length === 0 && claims.length === 0) {
+  if (!hasTrace && pending.length === 0 && claims.length === 0 && !targeted.degraded && steps.length === 0) {
     return null;
   }
 
@@ -201,6 +203,16 @@ function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
 
   return (
     <>
+      {targeted.degraded && (
+        <section className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p className="text-xs font-medium text-amber-800">⚠ 本次为降级结果</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-amber-700">
+            打分服务暂时不可用，所以只做了一次改写：没有跑「打分 → 复算 → 保留最优」的闭环，
+            也没有分数对比与事实核查。等打分服务恢复后重新优化一次即可。
+          </p>
+        </section>
+      )}
+
       {hasTrace && (
         <section className="mt-5 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -300,7 +312,70 @@ function OptimizeTrace({ targeted }: { targeted: TargetedOptimizeResponse }) {
           </ul>
         </section>
       )}
+
+      {steps.length > 0 && <PipelineSteps steps={steps} />}
     </>
+  );
+}
+
+/**
+ * 优化流水线的节点耗时条。
+ *
+ * <p>这条图是这次优化的"工程说明书"：灰色是纯代码节点（打分、组装），蓝色是调用模型的节点。
+ * 一眼能看出"哪一步花钱、哪一步必须花钱"——能确定的部分全部留在代码里，
+ * 模型只负责改写和提线索。
+ */
+function PipelineSteps({ steps }: { steps: NonNullable<TargetedOptimizeResponse["steps"]> }) {
+  const aiSteps = steps.filter((s) => s.ai);
+  const aiMs = aiSteps.reduce((sum, s) => sum + (s.durationMs ?? 0), 0);
+  const totalMs = steps.reduce((sum, s) => sum + (s.durationMs ?? 0), 0);
+  const maxMs = Math.max(1, ...steps.map((s) => s.durationMs ?? 0));
+
+  return (
+    <section className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs font-medium text-zinc-700">
+          优化流水线：{steps.length} 个节点，其中 {aiSteps.length} 个调用模型
+        </p>
+        <p className="text-[11px] text-zinc-400">
+          AI 节点 {aiMs}ms / 全部 {totalMs}ms
+        </p>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        {steps.map((s) => (
+          <div key={s.name} className="flex items-center gap-2.5" title={s.detail ?? undefined}>
+            <span
+              className={`w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-medium ${
+                s.ai ? "bg-blue-100 text-blue-700" : "bg-zinc-200 text-zinc-600"
+              }`}
+            >
+              {s.ai ? "AI" : "code"}
+            </span>
+            <span className="w-28 shrink-0 truncate text-xs text-zinc-600">{s.name}</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-200/80">
+              <div
+                className={`h-full rounded-full ${
+                  s.status === "DEGRADED"
+                    ? "bg-amber-400"
+                    : s.ai
+                      ? "bg-blue-500"
+                      : "bg-zinc-400"
+                }`}
+                style={{ width: `${Math.max(2, Math.min(100, ((s.durationMs ?? 0) / maxMs) * 100))}%` }}
+              />
+            </div>
+            <span className="w-14 shrink-0 text-right text-xs text-zinc-500">{s.durationMs ?? 0}ms</span>
+            <span className="w-16 shrink-0 text-[11px] text-amber-600">
+              {s.status && s.status !== "OK" ? s.status : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">
+        灰色为纯代码节点，蓝色为调用大模型的节点：打分、复算、保留最优、事实核查的判定全部由代码完成，
+        模型只负责改写与提线索。
+      </p>
+    </section>
   );
 }
 

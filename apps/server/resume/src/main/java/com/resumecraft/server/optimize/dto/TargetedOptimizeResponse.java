@@ -42,4 +42,10 @@ public class TargetedOptimizeResponse {
 
     @Builder.Default
     private List<Overstatement> pendingClaims = new ArrayList<>();
+
+    @Builder.Default
+    private List<StepRecord> steps = new ArrayList<>();
+    @Builder.Default
+    private Boolean degraded = false;
+
 }
