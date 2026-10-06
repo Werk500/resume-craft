@@ -1,10 +1,7 @@
 package com.resumecraft.server.optimize.loop;
 
 import com.resumecraft.server.job.domain.Job;
-import com.resumecraft.server.optimize.dto.AddedSkill;
-import com.resumecraft.server.optimize.dto.OptimizeIteration;
-import com.resumecraft.server.optimize.dto.Overstatement;
-import com.resumecraft.server.optimize.dto.StepRecord;
+import com.resumecraft.server.optimize.dto.*;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -29,6 +26,8 @@ public class OptimizeContext {
     private List<Overstatement> pendingClaims = new ArrayList<>();
     private List<StepRecord> steps = new ArrayList<>();
     private boolean degraded = false;      // 打分服务不可用 → 退化为"只改写一次"
+    private NextStep nextStep;
+    private String advice;
 
     public OptimizeContext(String baseText, Job job, int maxRounds, double minGain) {
         this.baseText = baseText;

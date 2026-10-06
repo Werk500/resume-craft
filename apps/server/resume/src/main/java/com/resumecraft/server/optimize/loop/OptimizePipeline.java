@@ -14,8 +14,8 @@ public class OptimizePipeline {
     private final List<OptimizeStep> steps;
 
     public OptimizePipeline(BaselineScoreStep a, RewriteIterateStep b,
-                            AuditParallelStep c, AssembleStep d) {
-        this.steps = List.of(a, b, c, d);        // 顺序一眼可见
+                            AuditParallelStep c, NextStepAdviceStep d, AssembleStep e) {
+        this.steps = List.of(a, b, c, d,e);        // 顺序一眼可见
     }
 
     public OptimizeLoopResult run(String baseText, Job job, int maxRounds, double minGain){
@@ -43,6 +43,8 @@ public class OptimizePipeline {
                 .pendingClaims(ctx.getPendingClaims())
                 .steps(ctx.getSteps())
                 .degraded(ctx.isDegraded())
+                .nextStep(ctx.getNextStep())
+                .advice(ctx.getAdvice())
                 .build();
     }
 

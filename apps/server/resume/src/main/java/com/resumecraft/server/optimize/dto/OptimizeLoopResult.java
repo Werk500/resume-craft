@@ -48,6 +48,9 @@ public class OptimizeLoopResult {
      */
     @Builder.Default
     private List<AddedSkill> pendingSkills = new ArrayList<>();
+    /** 下一步建议（代码按覆盖率 + 待确认项判定，不由模型生成） */
+    private NextStep nextStep;
+    private String advice;
 
     @Builder.Default
     private List<Overstatement> pendingClaims = new ArrayList<>();

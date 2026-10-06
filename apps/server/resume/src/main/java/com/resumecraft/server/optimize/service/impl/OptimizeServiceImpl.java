@@ -406,6 +406,8 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .pendingClaims(loop.getPendingClaims())
                 .steps(loop.getSteps())
                 .degraded(loop.isDegraded())
+                .nextStep(loop.getNextStep())
+                .advice(loop.getAdvice())
                 .build();
 
         //10. 写入缓存（有效期 1小时 + 随机偏移防雪崩）

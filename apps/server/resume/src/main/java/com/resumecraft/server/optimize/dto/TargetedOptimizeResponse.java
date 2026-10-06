@@ -48,4 +48,8 @@ public class TargetedOptimizeResponse {
     @Builder.Default
     private Boolean degraded = false;
 
+    /** 下一步建议（代码按覆盖率 + 待确认项判定，不由模型生成） */
+    private NextStep nextStep;
+    private String advice;
+
 }

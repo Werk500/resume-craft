@@ -29,3 +29,5 @@ app:
   optimize:
     max-rounds: 3
     min-gain: 5.0
+    readiness-threshold: 60.0   # >= 视为可以投递
+    weak-threshold: 40.0        # < 视为建议换岗位
