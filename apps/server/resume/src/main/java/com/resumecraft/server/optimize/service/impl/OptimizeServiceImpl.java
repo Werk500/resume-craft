@@ -8,9 +8,7 @@ import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.mq.AfterCommitExecutor;
-import com.resumecraft.server.optimize.dto.OptimizeIteration;
-import com.resumecraft.server.optimize.dto.OptimizeLoopResult;
-import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
+import com.resumecraft.server.optimize.dto.*;
 import com.resumecraft.server.optimize.loop.ResumeOptimizeLoop;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.optimize.util.MarkdownConverter;
@@ -33,7 +31,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -358,6 +358,19 @@ public class OptimizeServiceImpl implements OptimizeService {
                 optimizedResume.length(), gaps.size(), changes.size());
 
         //8.存 resume_version（继承简历归属）
+        // 组装 pending 快照：两项都空 → null（表示本来就不需要确认）
+        PendingSnapshot snapshot = new PendingSnapshot(loop.getPendingSkills(), loop.getPendingClaims());
+        String pendingJson = null;
+        if(!snapshot.isEmpty()) {
+            try {
+                pendingJson = objectMapper.writeValueAsString(snapshot);
+            } catch (Exception e) {
+                // 序列化失败不能阻塞主流程，但要留痕：宁可写成 [] 让用户多点一次确认，也别写 null 放行
+                log.error("pending_json 序列化失败，降级为空快照: versionId 未生成", e);
+                pendingJson = "{\"skills\":[],\"claims\":[]}";
+            }
+        }
+
         String scoreTag = loop.getBaselineCoverage() == null
                 ? ""
                 : String.format("(覆盖率%.1f→%.1f)", loop.getBaselineCoverage(), loop.getFinalCoverage());
@@ -369,6 +382,8 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .targetJob(job.getTitle())
                 .optimizedContent(optimizedResume)
                 .matchScore(loop.getFinalCoverage())   // 表里的 match_score 正好存闭环终值
+                .status("DRAFT")
+                .pendingJson(pendingJson)
                 .build();
         resumeVersionMapper.insert(version);
 
@@ -518,6 +533,10 @@ public class OptimizeServiceImpl implements OptimizeService {
             throw new IllegalArgumentException("版本不存在");
         }
 
+        if (version.getPendingJson() != null && !"CONFIRMED".equals(version.getStatus())) {
+            throw new IllegalArgumentException("该版本还有 AI 改动未确认，请先在版本页确认后再导出");
+        }
+
         if (!userId.equals(version.getUserId())) {
             log.warn("越权导出, versionId: {}, userId: {}", versionId, userId);
             throw new IllegalArgumentException("无权导出该版本");
@@ -543,6 +562,119 @@ public class OptimizeServiceImpl implements OptimizeService {
                 throw new IllegalArgumentException("不支持的格式: " + format + "，仅支持 docx 或 pdf");
         }
 
+    }
+
+    @Override
+    @Transactional
+    public ResumeVersion confirm(Long versionId, ConfirmRequest req) {
+        log.info("确认版本: versionId={}, decisions={}", versionId,
+                req == null || req.getDecisions() == null ? 0 : req.getDecisions().size());
+
+        // 1. 查版本 + 越权校验
+        Long userId = AuthContext.getUserId();
+        ResumeVersion version = resumeVersionMapper.selectById(versionId);
+        if (version == null) {
+            throw new IllegalArgumentException("版本不存在");
+        }
+
+        if (!userId.equals(version.getUserId())) {
+            log.warn("越权确认, versionId={}, userId={}", versionId, userId);
+            throw new IllegalArgumentException("无权操作该版本");
+        }
+
+        // 2. 已是 CONFIRMED → 幂等返回
+        if ("CONFIRMED".equals(version.getStatus())) {
+            log.info("版本已确认，幂等返回: versionId={}", versionId);
+            return version;
+        }
+
+        // 3. pendingJson 为空 → 没有待确认项，直接置 CONFIRMED
+        if (version.getPendingJson() == null || version.getPendingJson().isBlank()) {
+            version.setStatus("CONFIRMED");
+            version.setConfirmedAt(LocalDateTime.now());
+            resumeVersionMapper.updateById(version);
+            log.info("无待确认项，直接确认: versionId={}", versionId);
+            return version;
+        }
+
+        // 4. 解析快照，构造待处理集合
+        PendingSnapshot snapshot;
+        try {
+            snapshot = objectMapper.readValue(version.getPendingJson(), PendingSnapshot.class);
+        } catch (Exception e) {
+            log.error("pending_json 解析失败: versionId={}", versionId, e);
+            throw new RuntimeException("版本待确认项数据损坏，请联系管理员");
+        }
+
+        Set<String> pending = buildPendingKeys(snapshot);
+
+        // 5. 校验 action + 逐条移出
+        List<ConfirmDecision> decisions = req==null||req.getDecisions() == null?
+                List.of():req.getDecisions();
+
+        for (ConfirmDecision d : decisions) {
+            if (d == null || d.getAction() == null) {
+                throw new IllegalArgumentException("处置项缺少 action");
+            }
+            if (!"ACCEPT".equals(d.getAction()) && !"REMOVE".equals(d.getAction())) {
+                throw new IllegalArgumentException("非法 action: " + d.getAction() + "，只能是 ACCEPT / REMOVE");
+            }
+
+            String key = d.getType() + ":" + d.getTarget();
+            if (key.isBlank()) {
+                throw new IllegalArgumentException("处置项缺少 type ");
+            }
+            pending.remove(key);   // 多余或重复的 key 直接忽略，不报错
+        }
+
+        // 剩余非空 → 400
+        if (!pending.isEmpty()) {
+            List<String> preview = pending.stream().limit(3).toList();
+            throw new IllegalArgumentException(
+                    "还有 " + pending.size() + " 项未处置：" + String.join("、", preview));
+        }
+
+        // 6. content 非空且与原内容不同 → 覆盖
+        boolean contentChanged = false;
+        if(req.getContent() != null && !req.getContent().isBlank()
+                && !req.getContent().equals(version.getOptimizedContent())) {
+            version.setOptimizedContent(req.getContent());
+            contentChanged = true;
+        }
+
+        // 7. 置 CONFIRMED
+        version.setStatus("CONFIRMED");
+        version.setConfirmedAt(LocalDateTime.now());
+        resumeVersionMapper.updateById(version);
+
+        if (contentChanged) {
+            String finalContent = version.getOptimizedContent();
+            Long finalUserId = version.getUserId();
+            Long finalResumeId = version.getResumeId();
+            Long finalVersionId = version.getId();
+            afterCommitExecutor.execute(() -> producer.publish(
+                    finalResumeId, finalVersionId, finalUserId, finalContent));
+        }
+
+        log.info("版本确认成功: versionId={}, contentChanged={}", versionId, contentChanged);
+        return version;
+
+    }
+
+    /** 把快照摊平成 "SKILL:xxx" / "CLAIM:yyy" 的 key 集合，key 的构造规则必须和前端约定一致 */
+    private Set<String> buildPendingKeys(PendingSnapshot snapshot) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (snapshot.getSkills() != null) {
+            for (AddedSkill s : snapshot.getSkills()) {
+                keys.add("SKILL:" + s.getSkill());
+            }
+        }
+        if (snapshot.getClaims() != null) {
+            for (Overstatement c : snapshot.getClaims()) {
+                keys.add("CLAIM:" + c.getClaim());
+            }
+        }
+        return keys;
     }
 
     /**

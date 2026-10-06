@@ -36,4 +36,10 @@ public class ResumeVersion {
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+
+    /** DRAFT=待确认 / CONFIRMED=已确认（可导出、可投递） */
+    private String status;
+    private LocalDateTime confirmedAt;
+    /** 待确认项快照 JSON，确认接口用它做完整性校验 */
+    private String pendingJson;
 }

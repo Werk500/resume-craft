@@ -2,12 +2,14 @@ package com.resumecraft.server.optimize.controller;
 
 
 import com.resumecraft.server.common.ApiResponse;
+import com.resumecraft.server.optimize.dto.ConfirmRequest;
 import com.resumecraft.server.optimize.service.OptimizeService;
 import com.resumecraft.server.optimize.service.ResumeVersionService;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -62,5 +64,12 @@ public class ResumeVersionController {
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + fileName)
                 .body(data);
+    }
+
+    @PostMapping("/{id}/confirm")
+    @Operation(summary = "确认版本（处理完 AI 待确认项后才能导出/投递）")
+    public ApiResponse<ResumeVersion> confirm(@PathVariable Long id,
+                                              @Valid @RequestBody ConfirmRequest req) {
+        return ApiResponse.ok(optimizeService.confirm(id, req));
     }
 }

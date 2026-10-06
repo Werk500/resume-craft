@@ -1,5 +1,6 @@
 package com.resumecraft.server.optimize.service;
 
+import com.resumecraft.server.optimize.dto.ConfirmRequest;
 import com.resumecraft.server.optimize.dto.TargetedOptimizeResponse;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 
@@ -33,4 +34,6 @@ public interface OptimizeService {
     ResumeVersion saveContent(Long resumeId, String content, String versionName);
     /** 导出版本：支持 docx 和 pdf */
     byte[] exportVersion(Long versionId, String format);  // format: "docx" | "pdf"
+
+    ResumeVersion confirm(Long versionId, ConfirmRequest req);
 }
