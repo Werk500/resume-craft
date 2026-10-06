@@ -44,6 +44,16 @@ export default function ImprovementReport({
         </Link>
       </div>
 
+      {/* 下一步：由后端按覆盖率 + 待确认项用代码判定，放在最上面先给结论 */}
+      {targeted.nextStep && (
+        <NextStepCard
+          nextStep={targeted.nextStep}
+          advice={targeted.advice}
+          gaps={targeted.gaps}
+          resumeId={resumeId}
+        />
+      )}
+
       {/* 总分对比 */}
       <div className="mt-5 flex flex-wrap items-end gap-4">
         <ScoreBlock label="优化前" value={beforeScore} tone="slate" />
@@ -375,6 +385,74 @@ function PipelineSteps({ steps }: { steps: NonNullable<TargetedOptimizeResponse[
         灰色为纯代码节点，蓝色为调用大模型的节点：打分、复算、保留最优、事实核查的判定全部由代码完成，
         模型只负责改写与提线索。
       </p>
+    </section>
+  );
+}
+
+/**
+ * 下一步建议卡片。
+ *
+ * <p>这段结论是后端用代码算的（判据：关键词覆盖率 + 待确认项数量），不是模型生成的——
+ * 所以它可复现、可解释，也不会为了"看起来有帮助"而瞎给建议。
+ * 放在报告最上面，用户先看到"我该干什么"，再看下面的过程与证据。
+ */
+const NEXT_STEP_META: Record<
+  NonNullable<TargetedOptimizeResponse["nextStep"]>,
+  { label: string; cls: string; tag: string }
+> = {
+  READY: { label: "可以投递", tag: "✓", cls: "border-emerald-300 bg-emerald-50 text-emerald-800" },
+  NEEDS_CONFIRM: { label: "先确认 AI 改动", tag: "!", cls: "border-amber-300 bg-amber-50 text-amber-800" },
+  NEEDS_KEYWORDS: { label: "先补关键词", tag: "→", cls: "border-blue-300 bg-blue-50 text-blue-800" },
+  NOT_MATCHED: { label: "建议换岗位", tag: "×", cls: "border-zinc-300 bg-zinc-100 text-zinc-700" },
+  DEGRADED: { label: "降级运行", tag: "!", cls: "border-amber-300 bg-amber-50 text-amber-800" },
+};
+
+function NextStepCard({
+  nextStep,
+  advice,
+  gaps,
+  resumeId,
+}: {
+  nextStep: NonNullable<TargetedOptimizeResponse["nextStep"]>;
+  advice: string | null;
+  gaps: string[] | null;
+  resumeId: string;
+}) {
+  const meta = NEXT_STEP_META[nextStep] ?? {
+    label: nextStep,
+    tag: "·",
+    cls: "border-zinc-300 bg-zinc-100 text-zinc-700",
+  };
+
+  return (
+    <section className={`mt-4 rounded-xl border p-4 ${meta.cls}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-xs">
+            {meta.tag}
+          </span>
+          下一步：{meta.label}
+        </p>
+        {nextStep === "NEEDS_CONFIRM" && (
+          <Link
+            href={`/resume/${resumeId}/versions`}
+            className="rounded-lg bg-white/80 px-3 py-1 text-xs font-medium hover:bg-white"
+          >
+            去版本页逐条确认 →
+          </Link>
+        )}
+      </div>
+      {advice && <p className="mt-1.5 text-xs leading-relaxed opacity-90">{advice}</p>}
+      {nextStep === "NEEDS_KEYWORDS" && (gaps?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {gaps!.slice(0, 8).map((g) => (
+            <span key={g} className="rounded-full bg-white/70 px-2 py-0.5 text-[11px]">
+              {g}
+            </span>
+          ))}
+          {gaps!.length > 8 && <span className="text-[11px] opacity-70">…共 {gaps!.length} 个</span>}
+        </div>
+      )}
     </section>
   );
 }

@@ -130,7 +130,18 @@ export interface TargetedOptimizeResponse {
   degraded: boolean | null;
   /** 优化流水线的节点耗时记录 */
   steps: StepRecord[] | null;
+  /** 下一步建议（后端按覆盖率 + 待确认项用代码判定，不由模型生成） */
+  nextStep: NextStep | null;
+  /** 与 nextStep 配套的一句人话建议 */
+  advice: string | null;
 }
+
+export type NextStep =
+  | "READY"          // 可以投递
+  | "NEEDS_CONFIRM"  // 先处置 AI 待确认项
+  | "NEEDS_KEYWORDS" // 先补关键词
+  | "NOT_MATCHED"    // 岗位不匹配，建议换方向
+  | "DEGRADED";      // 降级运行，无法评估
 
 /** 优化流水线里的一个节点 */
 export interface StepRecord {
