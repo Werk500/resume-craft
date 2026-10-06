@@ -47,6 +47,11 @@ export interface ResumeVersion {
   optimizedContent: string;
   matchScore: number | null;
   createTime: string;
+  /** DRAFT=待用户确认 / CONFIRMED=已确认（可导出、可投递） */
+  status: string | null;
+  confirmedAt: string | null;
+  /** 待确认项快照 JSON（{skills:[], claims:[]}）；为空表示本来就不需要确认 */
+  pendingJson: string | null;
 }
 
 /** 岗位 */
