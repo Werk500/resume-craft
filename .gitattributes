@@ -1,0 +1,4 @@
+# Linux/WSL 部署脚本必须是 LF：CRLF 会让 bash 报
+#   /usr/bin/env: 'bash\r': No such file or directory
+.gitattributes text eol=lf
+*.sh text eol=lf

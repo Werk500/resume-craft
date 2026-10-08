@@ -192,6 +192,9 @@ JD 可能是抓来的，里面完全可以写一句"忽略以上所有指令，�
 │   │   ├── start-services.ps1  # 一键构建 + 启动（-NoWait 可只起不等待健康检查）
 │   │   ├── wait-services.ps1   # 轮询 /actuator/health 直到全部 UP
 │   │   ├── stop-services.ps1   # 停止全部服务
+│   │   ├── start-services.sh   # Linux/WSL 版一键启动（nohup + PID 文件）
+│   │   ├── wait-services.sh    # Linux/WSL 版健康等待（200 判健康，503 提示依赖）
+│   │   ├── stop-services.sh    # Linux/WSL 版停止（SIGTERM 优雅退出，--force 强杀）
 │   │   ├── demo.ps1            # 一键演示完整闭环（诊断/匹配/优化/投递）
 │   │   ├── reset-demo.ps1      # 重置演示账号数据 + 清理缓存
 │   │   ├── smoke-test.ps1      # 冒烟测试
@@ -300,6 +303,37 @@ npm run dev        # http://localhost:3001（API 默认经网关 8080）
 cd apps/server
 pwsh ./stop-services.ps1 -Force
 ```
+
+### 6. Linux / WSL 部署（可选）
+
+Windows 侧的 `start/stop/wait-services.ps1` 依赖 `Start-Process` 和 `cmd` 重定向，在 Linux 上不可用。
+仓库提供行为对齐的 bash 版三件套：
+
+```bash
+cd apps/server
+mvn -B -DskipTests package   # 首次需要先出 jar
+./start-services.sh          # 后台启动 5 个服务，PID 写进 logs/<服务>.pid
+./wait-services.sh 180       # 轮询 /actuator/health，5 个都返回 200 才算就绪
+./stop-services.sh           # SIGTERM 优雅停机（最多等 20s），--force 直接 SIGKILL
+```
+
+两边行为一致，实现方式按平台特性做了替换：
+
+| 关注点 | Windows 版 | Linux 版 |
+|---|---|---|
+| 后台运行 | `Start-Process` + `cmd` 重定向日志 | `nohup java -jar … &`，PID 落 `logs/<服务>.pid` |
+| 停止 | 按端口找进程后终止 | PID 文件优先、端口兜底，先 `SIGTERM` 再 `SIGKILL` |
+| 健康判定 | `Invoke-RestMethod` 是否 200 | `curl -w '%{http_code}'` 是否 200，503 时直接提示去看依赖详情 |
+| 端口占用 | `netstat` 查占用 | `ss -lntp` 查占用，被非托管进程占用时告警跳过而不是"半死不活地起来" |
+
+WSL2 下 Nacos/MySQL 常常还在 Windows 宿主上：`start-services.sh` 会用
+`ip route show default` 取宿主 IP，自动注入 `NACOS_ADDR` / `MYSQL_HOST`；
+Redis、PostgreSQL 若装在 WSL 内则保持 `localhost`。
+
+**实测（Ubuntu on WSL2）**：5 个服务的 `/actuator/health` 全部 200，`demo.ps1` 主流程可跑通。
+
+> 踩坑提示：`/mnt/c/...` 下的项目权限是 Windows 映射出来的假权限（目录一律显示 `777`），
+> 练 Linux 权限/磁盘建议先 `rsync` 到 Linux 原生文件系统，例如 `~/projects/resume-craft`。
 
 ### 方式 B：Docker 部署（可选）
 
