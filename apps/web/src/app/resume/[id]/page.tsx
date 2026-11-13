@@ -23,7 +23,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
       .catch((e) => setError(e instanceof Error ? e.message : "加载失败"));
   }, [resumeId]);
 
-  async function handleDiagnose() {
+  async function handleDiagnose(refresh = false) {
     if (resume?.ocrStatus === "REVIEW") {
       setError("图片识别置信度较低，请先核对识别内容再诊断");
       return;
@@ -31,7 +31,8 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
     setDiagnosing(true);
     setError(null);
     try {
-      setDiagnosis(await api<DiagnosisResponse>(`/api/v1/diagnose/${resumeId}`));
+      const query = refresh ? "?refresh=true" : "";
+      setDiagnosis(await api<DiagnosisResponse>(`/api/v1/diagnose/${resumeId}${query}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "诊断失败");
     } finally {
@@ -143,7 +144,7 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
               <h2 className="font-semibold text-zinc-800">AI 简历诊断</h2>
               {!diagnosis && !diagnosing && (
                 <button
-                  onClick={handleDiagnose}
+                  onClick={() => handleDiagnose()}
                   disabled={resume?.ocrStatus === "REVIEW"}
                   className="mt-4 w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
@@ -170,11 +171,11 @@ export default function ResumeDetailPage({ params }: { params: { id: string } })
                     ))}
                   </ul>
                   <button
-                    onClick={handleDiagnose}
-                    disabled={resume?.ocrStatus === "REVIEW"}
+                    onClick={() => handleDiagnose(true)}
+                    disabled={diagnosing || resume?.ocrStatus === "REVIEW"}
                     className="mt-3 text-xs text-zinc-900 hover:underline"
                   >
-                    重新诊断
+                    {diagnosing ? "重新诊断中…" : "重新诊断"}
                   </button>
                 </div>
               )}

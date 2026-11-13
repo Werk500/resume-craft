@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { clearAuth, getCurrentUser } from "@/lib/api";
+import { getCurrentUser, logout } from "@/lib/api";
 
 const navLinks = [
   { href: "/create", label: "AI 创建" },
@@ -16,6 +16,7 @@ const navLinks = [
 
 export default function Nav() {
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -27,10 +28,17 @@ export default function Nav() {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  function handleLogout() {
-    clearAuth();
-    setUser(null);
-    window.location.href = "/";
+  async function handleLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    try {
+      await logout();
+      setUser(null);
+      window.location.href = "/";
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -68,10 +76,12 @@ export default function Nav() {
                 {user.nickname || user.username}
               </span>
               <button
+                type="button"
                 onClick={handleLogout}
-                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100"
+                disabled={loggingOut}
+                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60"
               >
-                退出
+                {loggingOut ? "退出中…" : "退出"}
               </button>
             </>
           ) : (

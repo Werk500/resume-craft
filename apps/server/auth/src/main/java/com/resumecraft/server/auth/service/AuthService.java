@@ -13,4 +13,6 @@ public interface AuthService {
     LoginResponse login(@Valid LoginRequest request);
 
     UserInfoResponse me();
+
+    void logout(String authorizationHeader);
 }

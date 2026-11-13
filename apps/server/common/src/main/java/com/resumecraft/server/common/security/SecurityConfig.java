@@ -2,6 +2,7 @@ package com.resumecraft.server.common.security;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -57,6 +58,23 @@ public class SecurityConfig {
                         // 业务接口要求 JWT 认证（未登录返回 401）
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll())
+                // 未认证和权限不足必须使用不同状态码：
+                // 401 让前端清理失效 Token 并重新登录，403 只表示已登录但无权限。
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setCharacterEncoding("UTF-8");
+                            response.setContentType("application/json");
+                            response.getWriter().write(
+                                    "{\"code\":401,\"message\":\"登录已过期或未登录\",\"data\":null}");
+                        })
+                        .accessDeniedHandler((request, response, exception) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setCharacterEncoding("UTF-8");
+                            response.setContentType("application/json");
+                            response.getWriter().write(
+                                    "{\"code\":403,\"message\":\"无权限访问\",\"data\":null}");
+                        }))
                 // 允许 h2-console 的 iframe
                 .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 //添加 JWT 过滤器（在 UsernamePasswordAuthenticationFilter 之前）

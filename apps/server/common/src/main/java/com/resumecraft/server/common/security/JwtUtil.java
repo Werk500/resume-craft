@@ -1,6 +1,7 @@
 package com.resumecraft.server.common.security;
 
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +10,9 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -18,7 +21,7 @@ public class JwtUtil {
     /** 签名密钥，从配置读取（.env → JWT_SECRET），禁止硬编码 */
     private final SecretKey secretKey;
 
-    @Value("${app.jwt.expire-seconds:86400}")
+    @Value("${app.jwt.expire-seconds:1800}")
     private Long expireSeconds;
 
     public JwtUtil(@Value("${app.jwt.secret}") String secret) {
@@ -37,9 +40,10 @@ public class JwtUtil {
         Date expiration = new Date(now.getTime() + expireSeconds * 1000);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(userId)
                 .claim("username", username)
-                .issuedAt(new Date())
+                .issuedAt(now)
                 .expiration(expiration)
                 .signWith(secretKey)  // 0.12.x 版本自动选择 HS256
                 .compact();
@@ -50,23 +54,46 @@ public class JwtUtil {
      * @param token JWT 字符串
      * @return 用户ID，解析失败返回 null
      */
-    public  Long parseUserId(String token) {
+
+    public Long parseUserId(String token) {
+        ParsedToken parsed = parseToken(token);
+        return parsed == null ? null : parsed.userId();
+    }
+
+    public ParsedToken parseToken(String token){
         try {
-            var claims = Jwts.parser()
+            Claims claims = Jwts.parser()
                     .verifyWith(secretKey)
                     .build()
-                    .parseSignedClaims(token).getPayload();
+                    .parseSignedClaims(token)
+                    .getPayload();
 
-            return Long.valueOf(claims.getSubject());
+            if (claims.getSubject() == null
+                    || claims.getId() == null
+                    || claims.getExpiration() == null) {
+                return null;
+            }
+
+            return new ParsedToken(
+                    Long.valueOf(claims.getSubject()),
+                    claims.getId(),
+                    claims.getExpiration().toInstant()
+            );
         } catch (Exception e) {
             log.warn("JWT 解析失败: {}", e.getMessage());
             return null;
         }
-    }
+        }
 
 
-    public  boolean validateToken(String token) {
-        return token != null && parseUserId(token) != null;
+    public record ParsedToken(
+        Long userId,
+        String tokenId,
+        Instant expiresAt
+){}
+
+    public boolean validateToken(String token) {
+        return token != null && parseToken(token) != null;
     }
 }
 

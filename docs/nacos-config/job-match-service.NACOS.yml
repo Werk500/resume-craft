@@ -89,7 +89,7 @@ app:
       max-attempts: 1
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
-    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:1800}
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}
   agent:
     timeout-seconds: 60

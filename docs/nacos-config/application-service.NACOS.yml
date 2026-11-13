@@ -18,6 +18,13 @@ spring:
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:123456}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:123456}
+      timeout: 1000ms
+
   sql:
     init:
       mode: always
@@ -55,5 +62,5 @@ mybatis-plus:
 app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
-    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:1800}
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}

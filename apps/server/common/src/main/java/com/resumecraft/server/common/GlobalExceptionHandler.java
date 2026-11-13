@@ -1,7 +1,9 @@
 package com.resumecraft.server.common;
 
+import com.resumecraft.server.common.exception.ConflictException;
 import com.resumecraft.server.common.exception.ServiceUnavailableException;
 import com.resumecraft.server.common.exception.SessionBusyException;
+import com.resumecraft.server.common.exception.TooManyRequestsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理：把异常统一转成 ApiResponse 格式返回。
@@ -122,5 +125,25 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         return ApiResponse.error(405, "请求方法不支持: " + e.getMethod());
     }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleNoResourceFound(NoResourceFoundException e) {
+        return ApiResponse.error(404, "请求资源不存在");
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ApiResponse<Void> handleTooManyRequests(
+            TooManyRequestsException e
+    ) {
+        return ApiResponse.error(429, e.getMessage());
+    }
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleConflict(ConflictException e) {
+        return ApiResponse.error(409, e.getMessage());
+    }
+
 
 }

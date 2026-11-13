@@ -15,6 +15,13 @@ spring:
       # optional 前缀：Nacos 不可用时服务照常启动，配置中心不应成为单点故障
       - optional:nacos:${spring.application.name}.yml
       - optional:nacos:common.yml?group=COMMON
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: 0
+      timeout: 1000ms
   cloud:
     nacos:
       # server-addr 必须在根级：discovery 与 config 共用
@@ -26,6 +33,10 @@ spring:
         file-extension: yml
         refresh-enabled: true
 app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:1800}
+  internal-token: ${INTERNAL_TOKEN:dev-internal-token}
   optimize:
     max-rounds: 3
     min-gain: 5.0

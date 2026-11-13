@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, clearAuth } from "@/lib/api";
 import type { Resume } from "@/lib/types";
 
 export default function UploadPage() {
@@ -24,8 +24,8 @@ export default function UploadPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
-      if (res.status === 401) {
-        localStorage.removeItem("token");
+      if (res.status === 401 || res.status === 403) {
+        clearAuth();
         window.location.href = "/login";
         return;
       }
@@ -85,7 +85,7 @@ export default function UploadPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+            accept=".pdf,.docx,.png,.jpg,.jpeg"
             onChange={onFileChange}
             className="hidden"
           />

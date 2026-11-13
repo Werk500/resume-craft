@@ -42,6 +42,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- JWT 吊销名单与公共安全状态存储 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- JWT（JwtUtil 签名/解析，Step 3 认证下沉 common） -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

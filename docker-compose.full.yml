@@ -110,8 +110,9 @@ services:
       PG_USER: postgres
       PG_PASSWORD: "123456"
       KAFKA_SERVERS: kafka:9092
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-key-change-before-prod-32bytes}
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN is required}
+      JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-1800}
     depends_on:
       mysql:
         condition: service_healthy

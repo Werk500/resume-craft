@@ -7,9 +7,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * 内部服务间调用认证过滤器
@@ -18,7 +21,7 @@ import java.io.IOException;
 @Component
 public class InternalTokenFilter extends OncePerRequestFilter {
 
-    @Value("${app.internal-token:}")
+    @Value("${app.internal-token}")
     private String internalToken;
 
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
@@ -27,6 +30,8 @@ public class InternalTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+
+
 
         //获取请求路径
         String requestPath = request.getRequestURI();
@@ -39,7 +44,8 @@ public class InternalTokenFilter extends OncePerRequestFilter {
 
         //获取请求头中的Token
         String token = request.getHeader(INTERNAL_TOKEN_HEADER);
-        if(token == null || !token.equals(internalToken)){
+
+        if (!constantTimeEquals(token, internalToken)) {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setContentType("application/json");//告诉客户端返回的是 JSON 格式
             //写入json错误信息
@@ -48,5 +54,15 @@ public class InternalTokenFilter extends OncePerRequestFilter {
        }
         filterChain.doFilter(request, response);
 
+    }
+
+    private boolean constantTimeEquals(String actual, String expected) {
+        if (!StringUtils.hasText(actual) || !StringUtils.hasText(expected)) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                actual.getBytes(StandardCharsets.UTF_8),
+                expected.getBytes(StandardCharsets.UTF_8)
+        );
     }
 }

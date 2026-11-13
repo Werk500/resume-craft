@@ -1,5 +1,8 @@
 package com.resumecraft.server.common;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,6 +13,7 @@ import java.util.List;
  */
 @Setter
 @Getter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class DiagnosisResponse {
 
     private Long resumeId;
@@ -19,11 +23,14 @@ public class DiagnosisResponse {
     private DimensionScore matchScore;
     private List<String> suggestions;
 
-    public DiagnosisResponse(Long resumeId, double totalScore,
-                             DimensionScore completeness,
-                             DimensionScore expression,
-                             DimensionScore matchScore,
-                             List<String> suggestions) {
+    @JsonCreator
+    public DiagnosisResponse(
+            @JsonProperty("resumeId") Long resumeId,
+            @JsonProperty("totalScore") double totalScore,
+            @JsonProperty("completeness") DimensionScore completeness,
+            @JsonProperty("expression") DimensionScore expression,
+            @JsonProperty("matchScore") DimensionScore matchScore,
+            @JsonProperty("suggestions") List<String> suggestions) {
         this.resumeId = resumeId;
         this.totalScore = totalScore;
         this.completeness = completeness;
@@ -33,12 +40,17 @@ public class DiagnosisResponse {
     }
 
     /** 单维度得分及状态（red/yellow/green）。 */
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class DimensionScore {
         private final double score;     // 0~100
         private final String color;     // red | yellow | green
         private final String label;     // 中文标签
 
-        public DimensionScore(double score, String color, String label) {
+        @JsonCreator
+        public DimensionScore(
+                @JsonProperty("score") double score,
+                @JsonProperty("color") String color,
+                @JsonProperty("label") String label) {
             this.score = Math.round(score * 10) / 10.0;
             this.color = color;
             this.label = label;

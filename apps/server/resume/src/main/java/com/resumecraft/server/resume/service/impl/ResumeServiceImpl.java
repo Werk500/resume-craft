@@ -52,7 +52,7 @@ import java.util.List;
 public class ResumeServiceImpl implements ResumeService {
     private static final long STREAM_THRESHOLD = 10 * 1024 * 1024;  // 10MB
 
-    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     private static final String TEMP_FILE_PREFIX = "resume_";
 
     @Resource
@@ -133,9 +133,11 @@ public class ResumeServiceImpl implements ResumeService {
             }
 
             // 2. 提取信息
-            String email = infoExtractor.extractEmail(resume1.getRawText());
-            String phone = infoExtractor.extractPhone(resume1.getRawText());
-
+            ResumeInfoExtractor.ExtractedInfo extractedInfo =
+                    infoExtractor.extractAll(resume1.getRawText());
+            resume1.setParsedName(extractedInfo.getName());
+            resume1.setParsedEmail(extractedInfo.getEmail());
+            resume1.setParsedPhone(extractedInfo.getPhone());
 
             resumeMapper.insert(resume1);
             log.info("简历保存成功: id={}, 文件={}", resume1.getId(), originalName);
@@ -200,7 +202,7 @@ public class ResumeServiceImpl implements ResumeService {
                 .filter(p -> p.supports(fileType))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "不支持的文件类型：" + fileType + "，目前支持 pdf / docx / 图片(OCR 待集成)"));
+                        "不支持的文件类型：" + fileType + "，目前支持 pdf / docx / png / jpg / jpeg / bmp"));
     }
 
     private void validateFile(MultipartFile file) {

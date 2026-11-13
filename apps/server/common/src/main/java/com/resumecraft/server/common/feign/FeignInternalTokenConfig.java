@@ -7,6 +7,7 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 /**
  * Feign 内部服务调用自动添加 Token 配置
@@ -17,12 +18,20 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class FeignInternalTokenConfig {
 
-    /**
-     * 从配置文件读取内部 token
-     * 配置项：app.internal-token
-     */
-    @Value("${app.internal-token:}")
-    private String internalToken;
+    private final String internalToken;
+
+    public FeignInternalTokenConfig(
+            @Value("${app.internal-token}") String internalToken
+    ) {
+        if (!StringUtils.hasText(internalToken)
+                || internalToken.length() < 16) {
+            throw new IllegalStateException(
+                    "app.internal-token 至少需要 16 个字符"
+            );
+        }
+
+        this.internalToken = internalToken;
+    }
 
     /**
      * 请求头名称（必须和 InternalTokenFilter 中定义的一致）
@@ -52,9 +61,8 @@ public class FeignInternalTokenConfig {
             @Override
             public void apply(RequestTemplate template) {
                 // 如果配置了 token，则添加到请求头
-                if (internalToken != null && !internalToken.isEmpty()) {
-                    template.header(INTERNAL_TOKEN_HEADER, internalToken);
-                }
+                template.header(INTERNAL_TOKEN_HEADER, internalToken);
+
 
                 //traceId:从MDC取，透传给下游服务
                 String traceId = MDC.get(TRACE_ID_MDC_KEY);

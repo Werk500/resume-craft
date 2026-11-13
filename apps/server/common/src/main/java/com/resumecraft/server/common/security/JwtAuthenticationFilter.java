@@ -24,6 +24,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Resource
     private JwtUtil jwtUtil;
+    @Resource
+    private TokenRevocationService tokenRevocationService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -34,25 +36,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
-            //3.解析token 获取userId
-            Long userId = jwtUtil.parseUserId(token);
-            if (userId != null) {
-                // 4. 构造 Authentication 对象存入 SecurityContextHolder
-                List<GrantedAuthority> authorities = Collections
-                        .singletonList(new SimpleGrantedAuthority("USER")); // 身份：普通用户
+            JwtUtil.ParsedToken parsedToken = jwtUtil.parseToken(token);
+            if (parsedToken != null ) {
+                boolean revoked = tokenRevocationService.isRevoked(parsedToken.tokenId());
+                if (!revoked) {
+                    //3.解析token 获取userId
+                    Long userId = parsedToken.userId();
+                    if (userId != null) {
+                        // 4. 构造 Authentication 对象存入 SecurityContextHolder
+                        List<GrantedAuthority> authorities = Collections
+                                .singletonList(new SimpleGrantedAuthority("USER")); // 身份：普通用户
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userId, null, authorities);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(
+                                        userId, null, authorities);
 
-                // 设置请求详情（可选）
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        // 设置请求详情（可选）
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                // 存入 SecurityContext
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                        // 存入 SecurityContext
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.debug("JWT 认证成功: userId={}, path={}", userId, request.getRequestURI());
+                        log.debug("JWT 认证成功: userId={}, path={}", userId, request.getRequestURI());
 
+                    }
+                }
             }
         }
         filterChain.doFilter(request, response);

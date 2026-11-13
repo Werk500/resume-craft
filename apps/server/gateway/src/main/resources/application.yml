@@ -14,6 +14,13 @@ spring:
     import:
       - optional:nacos:${spring.application.name}.yml
       - optional:nacos:common.yml?group=COMMON
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      database: 0
+      timeout: 1000ms
   cloud:
     nacos:
       server-addr: ${NACOS_ADDR:localhost:8848}
@@ -41,6 +48,13 @@ spring:
                 allowed-headers: "*"
                 allow-credentials: true
                 max-age: 3600
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userIpKeyResolver}"
           routes:
             - id: auth-service
               uri: lb://auth-service
@@ -67,13 +81,6 @@ spring:
                 - Path=/api/v1/application/**
               filters:
                 - StripPrefix=0
-            - id: actuator-health
-              uri: lb://auth-service
-              predicates:
-                - Path=/actuator/health
-              filters:
-                - StripPrefix=0
-
 management:
   endpoints:
     web:
@@ -82,3 +89,7 @@ management:
   endpoint:
     health:
       show-details: always
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}

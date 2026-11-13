@@ -1,7 +1,7 @@
 # ============================================================
 # Nacos service config -- PUBLISH THIS CONTENT TO NACOS
 #
-# Data ID : gateway.yml
+# Data ID : resume-craft-gateway.yml
 # Group   : DEFAULT_GROUP
 # Format  : YAML
 #
@@ -31,17 +31,3 @@ spring:
       # is down (measured 63s before the first SSE frame). 1s is plenty for a
       # local token-bucket check and lets the filter fail open quickly.
       timeout: 1000ms
-
-  cloud:
-    gateway:
-      server:
-        webflux:
-          default-filters:
-            - name: RequestRateLimiter
-              args:
-                # token replenish rate per second
-                redis-rate-limiter.replenishRate: 20
-                # burst capacity
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userIpKeyResolver}"

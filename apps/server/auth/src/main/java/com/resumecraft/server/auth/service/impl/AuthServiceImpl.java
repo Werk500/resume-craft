@@ -7,10 +7,13 @@ import com.resumecraft.server.auth.dto.LoginRequest;
 import com.resumecraft.server.auth.dto.LoginResponse;
 import com.resumecraft.server.auth.dto.RegisterRequest;
 import com.resumecraft.server.auth.dto.UserInfoResponse;
+import com.resumecraft.server.common.exception.ConflictException;
 import com.resumecraft.server.common.security.JwtUtil;
 import com.resumecraft.server.auth.service.AuthService;
+import com.resumecraft.server.common.security.TokenRevocationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,38 +31,47 @@ public class AuthServiceImpl implements AuthService {
     private PasswordEncoder passwordEncoder;
     @Resource
     private JwtUtil jwtUtil;
+    @Resource
+    private TokenRevocationService tokenRevocationService;
 
     @Override
     public UserInfoResponse register(RegisterRequest request) {
+
+        String username = request.getUsername().trim();
+        String nickname = request.getNickname().trim();
         //1.检查用户名是否存在
         Long count = sysUserMapper.selectCount(
                 new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getUsername, request.getUsername()));
+                        .eq(SysUser::getUsername, username));
         if (count > 0) {
-            throw new IllegalArgumentException("用户名已注册");
+            throw new ConflictException("用户名已注册");
         }
 
         //2.Bcrypt加密密码
         String encoded = passwordEncoder.encode(request.getPassword());
 
         SysUser sysUser = SysUser.builder()
-                .username(request.getUsername())
+                .username(username)
                 .password(encoded)
-                .nickname(request.getNickname())
+                .nickname(nickname)
                 .build();
 
-        sysUserMapper.insert(sysUser);
+        try {
+            sysUserMapper.insert(sysUser);
 
-        log.info("用户注册成功: userId={}, username={}", sysUser.getId(), sysUser.getUsername());
-
-
+            log.info("用户注册成功: userId={}, username={}", sysUser.getId(), sysUser.getUsername());
+        } catch (DuplicateKeyException e) {
+            log.warn("并发注册用户名冲突: username={}", username);
+            throw new ConflictException("用户名已注册");
+        }
         // 返回用户信息（不含密码）
         return UserInfoResponse.from(sysUser);
     }
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        SysUser sysUser = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+        SysUser sysUser = sysUserMapper.selectOne(
+                new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getUsername, request.getUsername()));
         if (sysUser == null) {
             throw new IllegalArgumentException("用户名或密码错误");
@@ -92,5 +104,29 @@ public class AuthServiceImpl implements AuthService {
 
         log.debug("获取当前用户成功: userId={}, username={}", userId, sysUser.getUsername());
         return UserInfoResponse.from(sysUser);
+    }
+
+    @Override
+    public void logout(String authorizationHeader) {
+        String token = extractBearerToken(authorizationHeader);
+        if (token == null) return;
+
+        JwtUtil.ParsedToken parsedToken = jwtUtil.parseToken(token);
+        if (parsedToken == null) {
+            return;
+        }
+
+        tokenRevocationService.revoke(parsedToken);
+
+    }
+
+    private String extractBearerToken(String authorizationHeader){
+        if (authorizationHeader == null
+                || !authorizationHeader.startsWith("Bearer ")) {
+            return null;
+        }
+
+        String token = authorizationHeader.substring(7).trim();
+        return token.isEmpty() ? null : token;
     }
 }

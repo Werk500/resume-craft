@@ -3,10 +3,7 @@ package com.resumecraft.server.diagnose.controller;
 import com.resumecraft.server.diagnose.service.DiagnosisService;
 import jakarta.annotation.Resource;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.resumecraft.server.common.ApiResponse;
 import com.resumecraft.server.common.DiagnosisResponse;
@@ -24,12 +21,14 @@ public class DiagnosisController {
     private DiagnosisService diagnosisService;
 
     @GetMapping("/diagnose/{resumeId}")
-    public ApiResponse<DiagnosisResponse> diagnose(@PathVariable Long resumeId) {
-        return ApiResponse.ok(diagnosisService.diagnose(resumeId));
+    public ApiResponse<DiagnosisResponse> diagnose(@PathVariable Long resumeId,
+                                                   @RequestParam(defaultValue = "false") boolean refresh) {
+        return ApiResponse.ok(diagnosisService.diagnose(resumeId,refresh));
     }
 
     @GetMapping(value = "/diagnose/{resumeId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> diagnoseStream(@PathVariable Long resumeId) {
-        return diagnosisService.diagnoseStream(resumeId);
+    public Flux<String> diagnoseStream(@PathVariable Long resumeId,
+                                       @RequestParam(defaultValue = "false") boolean refresh) {
+        return diagnosisService.diagnoseStream(resumeId,refresh);
     }
 }

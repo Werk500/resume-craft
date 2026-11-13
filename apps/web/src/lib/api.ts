@@ -58,6 +58,31 @@ export function clearAuth() {
   localStorage.removeItem("user");
 }
 
+/**
+ * 注销当前 Access Token。
+ *
+ * 即使服务端暂时不可用，也必须清除本地登录态；服务端请求成功时，
+ * Auth Service 会把当前 JWT 的 jti 写入 Redis 吊销名单。
+ */
+export async function logout(): Promise<void> {
+  const token = typeof window !== "undefined"
+    ? localStorage.getItem("token")
+    : null;
+
+  try {
+    if (token) {
+      await fetch(`${API_BASE}/api/v1/auth/logout`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+  } finally {
+    clearAuth();
+  }
+}
+
 export function getCurrentUser(): { userId: number; username: string; nickname: string | null } | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem("user");

@@ -4,7 +4,7 @@ import com.resumecraft.server.common.DiagnosisResponse;
 import reactor.core.publisher.Flux;
 
 public interface DiagnosisService {
-    DiagnosisResponse diagnose(Long resumeId);
+    DiagnosisResponse diagnose(Long resumeId, boolean refresh);
 
-    Flux<String> diagnoseStream(Long resumeId);
+    Flux<String> diagnoseStream(Long resumeId, boolean refresh);
 }
