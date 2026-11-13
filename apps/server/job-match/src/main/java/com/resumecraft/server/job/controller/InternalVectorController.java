@@ -30,4 +30,25 @@ public class InternalVectorController {
                 resumeId, deleted, MDC.get("traceId"));
         return deleted;
     }
+
+    @DeleteMapping("/resume/{resumeId}/version/{versionId}")
+    public Integer deleteResumeVersionVector(
+            @PathVariable Long resumeId,
+            @PathVariable Long versionId
+    ) {
+        int deleted = vectorStore.deleteResumeVersionVector(
+                resumeId,
+                versionId
+        );
+
+        log.info(
+                "internal 删除版本向量 resumeId={}, versionId={}, deleted={}, traceId={}",
+                resumeId,
+                versionId,
+                deleted,
+                MDC.get("traceId")
+        );
+
+        return deleted;
+    }
 }

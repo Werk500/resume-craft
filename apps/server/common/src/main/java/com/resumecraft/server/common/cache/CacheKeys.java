@@ -84,4 +84,9 @@ public final class CacheKeys {
     public static String agentSessionLock(String memoryId) {
         return PREFIX + "agent:session-lock:" + memoryId;
     }
+
+    public static String targetedOptimizeLock(Long resumeId, Long jobId) {
+        return PREFIX + "targeted-optimize:lock:"
+                + resumeId + ":" + jobId;
+    }
 }

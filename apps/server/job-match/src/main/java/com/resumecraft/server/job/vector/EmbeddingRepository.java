@@ -72,6 +72,18 @@ public class EmbeddingRepository {
                 "DELETE FROM resume_embedding WHERE resume_id = ?", resumeId);
     }
 
+    public int deleteResumeVersionVector(
+            Long resumeId,
+            Long versionId
+    ) {
+        return vectorJdbcTemplate.update(
+                "DELETE FROM resume_embedding " +
+                        "WHERE resume_id = ? AND version_id = ?",
+                resumeId,
+                versionId
+        );
+    }
+
     // ----------------------------------------------------------- 岗位向量
 
     public String selectJobVector(Long jobId) {

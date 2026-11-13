@@ -2,13 +2,17 @@ package com.resumecraft.server.optimize.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.resumecraft.server.common.security.AuthContext;
+import com.resumecraft.server.mq.AfterCommitExecutor;
+import com.resumecraft.server.optimize.cache.OptimizeCacheEvictor;
 import com.resumecraft.server.optimize.service.ResumeVersionService;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
 import com.resumecraft.server.resume.domain.ResumeVersionMapper;
+import com.resumecraft.server.resume.gateway.JobMatchServiceGateway;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,6 +21,14 @@ import java.util.List;
 public class ResumeVersionServiceImpl implements ResumeVersionService {
     @Resource
     private ResumeVersionMapper resumeVersionMapper;
+    @Resource
+    private OptimizeCacheEvictor optimizeCacheEvictor;
+
+    @Resource
+    private JobMatchServiceGateway jobMatchServiceGateway;
+
+    @Resource
+    private AfterCommitExecutor afterCommitExecutor;
 
     @Override
     public List<ResumeVersion> list(Long resumeId) {
@@ -31,21 +43,14 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Void delete(Long id) {
-        ResumeVersion version = resumeVersionMapper.selectById(id);
-        Long currentUserId = AuthContext.getUserId();
-        //1.查询版本是否存在
-        if (version == null) {
-            log.warn("版本不存在, versionId: {}", id);
-            throw new IllegalArgumentException("版本不存在");
-        }
 
-        //2.校验归属权
-        if (!currentUserId.equals(version.getUserId())) {
-            log.warn("越权删除, versionId: {}, 当前用户: {}, 版本所属用户: {}",
-                    id, currentUserId, version.getUserId());
-            throw new IllegalArgumentException("无权删除该版本");
-        }
+        ResumeVersion version = findOwnedVersion(id);
+
+        Long resumeId = version.getResumeId();
+        Long versionId = version.getId();
+
 
         int rows = resumeVersionMapper.deleteById(id);
         if (rows > 0) {
@@ -55,7 +60,32 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             throw new RuntimeException("删除版本失败");
 
         }
+
+        afterCommitExecutor.execute(() -> {
+            optimizeCacheEvictor.evictByResumeId(resumeId);
+            jobMatchServiceGateway.deleteVersionVector(
+                    resumeId,
+                    versionId
+            );
+        });
+
+        log.info(
+                "删除版本成功: versionId={}, resumeId={}",
+                versionId,
+                resumeId
+        );
         return null;
 
+    }
+
+    private ResumeVersion findOwnedVersion(Long versionId) {
+        Long currentUserId = AuthContext.getUserId();
+        ResumeVersion version = resumeVersionMapper.selectById(versionId);
+
+        if (version == null || !currentUserId.equals(version.getUserId())) {
+            throw new IllegalArgumentException("版本不存在");
+        }
+
+        return version;
     }
 }

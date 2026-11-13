@@ -28,4 +28,12 @@ public interface JobMatchClient {
 
     @PostMapping("/score")
     ScoreResponse score(@RequestBody ScoreRequest request);
+
+    @DeleteMapping(
+            "/vector/resume/{resumeId}/version/{versionId}"
+    )
+    Integer deleteResumeVersionVector(
+            @PathVariable("resumeId") Long resumeId,
+            @PathVariable("versionId") Long versionId
+    );
 }

@@ -151,4 +151,28 @@ public class VectorStore {
             return 0;
         }
     }
+
+    public int deleteResumeVersionVector(
+            Long resumeId,
+            Long versionId
+    ) {
+        if (resumeId == null || versionId == null) {
+            return 0;
+        }
+
+        try {
+            return embeddingRepository.deleteResumeVersionVector(
+                    resumeId,
+                    versionId
+            );
+        } catch (Exception e) {
+            log.warn(
+                    "删除简历版本向量失败: resumeId={}, versionId={}, err={}",
+                    resumeId,
+                    versionId,
+                    e.getMessage()
+            );
+            return 0;
+        }
+    }
 }

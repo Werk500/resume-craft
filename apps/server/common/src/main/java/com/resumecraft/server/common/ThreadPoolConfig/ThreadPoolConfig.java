@@ -9,6 +9,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
+/**
+ * auditExecutor
+ * → 负责并行编排“技能审计”和“夸大审计”
+ *
+ * aiExecutor
+ * → 负责真正调用大模型
+ */
 @Configuration
 public class ThreadPoolConfig {
 
@@ -79,4 +86,39 @@ public class ThreadPoolConfig {
         return executor;
     }
 
+    @Bean(name = "auditExecutor")
+    public ThreadPoolTaskExecutor auditExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("audit-exec-");
+
+        // 审计是优化流程的可选节点，容量不足时快速拒绝并降级
+        executor.setRejectedExecutionHandler(
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(20);
+
+        executor.setTaskDecorator(task -> {
+            Map<String, String> context = MDC.getCopyOfContextMap();
+            return () -> {
+                if (context != null) {
+                    MDC.setContextMap(context);
+                }
+                try {
+                    task.run();
+                } finally {
+                    MDC.clear();
+                }
+            };
+        });
+
+        executor.initialize();
+        return executor;
     }
+
+}

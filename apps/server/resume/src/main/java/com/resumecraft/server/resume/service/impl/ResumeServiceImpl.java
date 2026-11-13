@@ -8,6 +8,7 @@ import com.resumecraft.server.diagnose.domain.Diagnosis;
 import com.resumecraft.server.diagnose.domain.DiagnosisMapper;
 import com.resumecraft.server.file.FileStorageService;
 import com.resumecraft.server.mq.AfterCommitExecutor;
+import com.resumecraft.server.optimize.cache.OptimizeCacheEvictor;
 import com.resumecraft.server.resume.domain.Resume;
 import com.resumecraft.server.resume.domain.ResumeMapper;
 import com.resumecraft.server.resume.domain.ResumeVersion;
@@ -25,6 +26,8 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.EmptyFileException;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -79,6 +82,8 @@ public class ResumeServiceImpl implements ResumeService {
     private AfterCommitExecutor afterCommitExecutor;
     @Resource
     private JobMatchServiceGateway jobMatchServiceGateway;
+    @Resource
+    private OptimizeCacheEvictor  optimizeCacheEvictor;
 
     /**
      * 上传并解析简历。
@@ -270,7 +275,11 @@ public class ResumeServiceImpl implements ResumeService {
         } catch (Exception e) {
             log.error("文件删除失败: filePath={}, error={}", resume.getFilePath(), e.getMessage(), e);
         }
+
+        //
         evictResumeCaches(id);
+        optimizeCacheEvictor.evictByResumeId(resume.getId());
+
         log.info("简历删除成功: id={}", id);
     }
 
@@ -382,9 +391,22 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private void addKeys(List<String> target, String pattern) {
-        var matched = stringRedisTemplate.keys(pattern);
-        if (!matched.isEmpty()) {
-            target.addAll(matched);
+        if (target == null || pattern == null) {
+            return;
+        }
+
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(pattern)
+                .count(500) // 每次遍历 500 个槽位
+                .build();
+
+        try (Cursor<String> cursor = stringRedisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                target.add(cursor.next());
+            }
+        } catch (Exception e) {
+            // 记录日志，不要因为缓存清理失败影响主流程
+            log.warn("SCAN 提取缓存 Key 失败: pattern={}", pattern, e);
         }
     }
 

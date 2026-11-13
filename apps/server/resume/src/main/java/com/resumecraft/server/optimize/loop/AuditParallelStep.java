@@ -25,8 +25,8 @@ public class AuditParallelStep implements OptimizeStep{ // 两条审计并行
 
     @Resource
     private AiService aiService;
-    @Resource
-    private ThreadPoolTaskExecutor aiExecutor;
+    @Resource(name = "auditExecutor")
+    private ThreadPoolTaskExecutor auditExecutor;
     @Resource
     private ObjectMapper objectMapper;
     @Resource
@@ -60,13 +60,31 @@ public class AuditParallelStep implements OptimizeStep{ // 两条审计并行
         String original = ctx.getBaseText();
         String finalBest = ctx.getBest();
 
-        CompletableFuture<List<AddedSkill>> skillsFuture = CompletableFuture.supplyAsync(
-                () -> auditAddedSkills(original, finalBest), aiExecutor);
-        CompletableFuture<List<Overstatement>> claimsFuture = CompletableFuture.supplyAsync(
-                () -> auditOverstatements(original, finalBest), aiExecutor);
+        CompletableFuture<List<AddedSkill>> skillsFuture = null;
+        CompletableFuture<List<Overstatement>> claimsFuture = null;
 
-        ctx.setPendingSkills(joinSafely(skillsFuture, "技能依据审计"));
-        ctx.setPendingClaims(joinSafely(claimsFuture, "夸大审计"));
+        try {
+
+            skillsFuture = CompletableFuture.supplyAsync(
+                    () -> auditAddedSkills(original, finalBest),
+                    auditExecutor
+            );
+
+            claimsFuture = CompletableFuture.supplyAsync(
+                    () -> auditOverstatements(original, finalBest),
+                    auditExecutor
+            );
+        } catch (RuntimeException e) {
+            if (skillsFuture != null) {
+                skillsFuture.cancel(true);
+            }
+            if (claimsFuture != null) {
+                claimsFuture.cancel(true);
+            }
+            throw e;
+        }
+
+        awaitAuditTasks(skillsFuture, claimsFuture, ctx);
 
     }
 
@@ -80,8 +98,7 @@ public class AuditParallelStep implements OptimizeStep{ // 两条审计并行
             List<Overstatement> claims = result.getOverstatements() == null ? List.of() : result.getOverstatements();
             return overstatementChecker.check(rewritten, claims);
         } catch (Exception e) {
-            log.warn("夸大审计调用失败，跳过: {}", e.getMessage());
-            return List.of();
+            throw new IllegalStateException("夸大审计失败", e);
         }
 
     }
@@ -97,8 +114,7 @@ public class AuditParallelStep implements OptimizeStep{ // 两条审计并行
             List<AddedSkill> claimed = result.getAddedSkills() == null ? List.of() : result.getAddedSkills();
             return fabricationGuard.verify(originalText, claimed);
         } catch (Exception e) {
-            log.warn("事实核查调用失败，跳过待确认列表: {}", e.getMessage());
-            return List.of();
+            throw new IllegalStateException("技能依据审计失败", e);
         }
 
 
@@ -113,13 +129,40 @@ public class AuditParallelStep implements OptimizeStep{ // 两条审计并行
         return (start >= 0 && end > start) ? json.substring(start, end + 1) : json;
     }
 
-    /** 并行任务取结果：超时/异常都只记日志并返回空列表，绝不拖垮主流程 */
-    private <T> List<T> joinSafely(CompletableFuture<List<T>> future, String name) {
+
+    private void awaitAuditTasks(
+            CompletableFuture<List<AddedSkill>> skillsFuture,
+            CompletableFuture<List<Overstatement>> claimsFuture,
+            OptimizeContext ctx
+    ) {
+        if (skillsFuture == null || claimsFuture == null) {
+            throw new IllegalStateException("并行审计任务未成功提交");
+        }
+
         try {
-            return future.get(30, TimeUnit.SECONDS);
+            CompletableFuture.allOf(
+                    skillsFuture,
+                    claimsFuture
+            ).get(30, TimeUnit.SECONDS);
+
+            ctx.setPendingSkills(
+                    skillsFuture.getNow(List.of())
+            );
+            ctx.setPendingClaims(
+                    claimsFuture.getNow(List.of())
+            );
         } catch (Exception e) {
-            log.warn("{}失败（不影响优化结果）: {}", name, e.getMessage());
-            return List.of();
+            skillsFuture.cancel(true);
+            claimsFuture.cancel(true);
+
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+
+            throw new IllegalStateException(
+                    "并行审计失败或超时",
+                    e
+            );
         }
     }
 }

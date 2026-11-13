@@ -8,6 +8,7 @@ import com.resumecraft.server.common.security.AuthContext;
 import com.resumecraft.server.job.domain.Job;
 import com.resumecraft.server.job.domain.JobMapper;
 import com.resumecraft.server.mq.AfterCommitExecutor;
+import com.resumecraft.server.optimize.cache.OptimizeCacheEvictor;
 import com.resumecraft.server.optimize.dto.*;
 import com.resumecraft.server.optimize.loop.ResumeOptimizeLoop;
 import com.resumecraft.server.optimize.service.OptimizeService;
@@ -28,7 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
@@ -63,9 +67,6 @@ public class OptimizeServiceImpl implements OptimizeService {
     private PdfGenerator pdfGenerator;
     @Resource
     private AfterCommitExecutor afterCommitExecutor;
-
-    @Resource
-    private ThreadPoolTaskExecutor aiExecutor;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     @Resource
@@ -74,6 +75,10 @@ public class OptimizeServiceImpl implements OptimizeService {
     private EmbeddingTaskProducer producer;
     @Resource
     private ResumeOptimizeLoop resumeOptimizeLoop;
+    @Resource
+    private TransactionTemplate transactionTemplate;
+    @Resource
+    private OptimizeCacheEvictor  optimizeCacheEvictor;
 
     /** 优化闭环最多迭代几轮 */
     @Value("${app.optimize.max-rounds:3}")
@@ -82,9 +87,6 @@ public class OptimizeServiceImpl implements OptimizeService {
     /** 覆盖率提升多少个百分点算达标（提前结束，省 token） */
     @Value("${app.optimize.min-gain:5.0}")
     private double minGain;
-
-    private static final String NULL_VALUE = "NULL";
-    private static final long NULL_EXPIRE_MINUTES = 5;
 
 
     /**
@@ -96,6 +98,8 @@ public class OptimizeServiceImpl implements OptimizeService {
      */
     @Override
     public ResumeVersion optimize(Long resumeId, String targetJob) {
+
+        Resume resume = loadOptimizableResume(resumeId);
 
         log.info("开始 AI 优化: resumeId={}, targetJob={}", resumeId, targetJob);
 
@@ -110,12 +114,6 @@ public class OptimizeServiceImpl implements OptimizeService {
             log.warn("缓存读取失败，跳过缓存, cacheKey={}", cacheKey, e);
         }
 
-        //检查是否是空值缓存
-        if(NULL_VALUE.equals(cachedValue)) {
-            log.warn("命中空值缓存, resumeId={}, targetJob={}", resumeId, targetJob);
-            throw new RuntimeException("简历不存在");
-        }
-
         //2.尝试从缓存中获取
         if (cachedValue != null) {
             try {
@@ -126,26 +124,12 @@ public class OptimizeServiceImpl implements OptimizeService {
             } catch (Exception e) {
                 log.warn("缓存反序列化失败，将重新生成: {}", e.getMessage());
                 // 缓存数据损坏，删除并继续执行
-                stringRedisTemplate.delete(cacheKey);
+                try {
+                    stringRedisTemplate.delete(cacheKey);
+                } catch (Exception ex) {
+                    log.warn("删除损坏缓存失败: {}", ex.getMessage());
+                }
             }
-        }
-        //查询数据库验证简历是否存在
-        Resume resume;
-        try {
-            resume = resumeService.findById(resumeId);
-
-            if ("REVIEW".equals(resume.getOcrStatus())) {
-                throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
-            }
-        }
-        catch (IllegalArgumentException e) {
-            // 业务场景：简历不存在 → 写空值缓存（防穿透）→ 重抛原异常
-            stringRedisTemplate.opsForValue().set(cacheKey, NULL_VALUE, NULL_EXPIRE_MINUTES, TimeUnit.MINUTES);
-            throw e;                          // 保留"简历不存在"给前端
-        } catch (Exception e) {
-            // 数据库异常也可能导致查不到，不缓存空值
-            log.error("查询简历失败, resumeId={}", resumeId, e);
-            throw new RuntimeException("系统异常，请稍后重试");
         }
 
         //  3.AI 改写（返回 Markdown 文本）
@@ -160,14 +144,11 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .targetJob(targetJob)
                 .optimizedContent(optimized)
                 .build();
-        resumeVersionMapper.insert(version);
-        log.info("优化版本已保存: id={}, resumeId={}", version.getId(), resumeId);
 
-        // 优化版本也要预生成向量：否则用户优化完立刻点匹配，
-        // 又会触发一次 200~500ms 的同步 embedding，预生成就白做了
-        afterCommitExecutor.execute(() -> producer.publish(
-                resumeId, version.getId(), resume.getUserId(), version.getOptimizedContent()));
+        saveVersionAndPublish(version);
 
+        log.info("优化版本已保存: id={}, resumeId={}",
+                version.getId(), resumeId);
         // 5. 写入缓存（有效期 1 小时）
         try {
             //将 Java 对象序列化为 JSON 字符串，以便存入 Redis。
@@ -193,36 +174,28 @@ public class OptimizeServiceImpl implements OptimizeService {
      * @param resumeId
      * @param jobId
      * @return
-     * 用户请求 (resumeId, jobId)
-     *     ↓
-     * 1. 检查 Redis 缓存
-     *     ↓ (未命中)
-     * 2. 查询 Resume + Job
-     *     ↓ (存在)
-     * 3. 拼 Prompt → 调用 AI
-     *     ↓
-     * 4. 解析 AI 返回 JSON
-     *     ├─ optimizedResume (Markdown)
-     *     ├─ gaps (缺失技能列表)
-     *     └─ changes (改动说明)
-     *     ↓
-     * 5. 存 resume_version
-     *     ├─ userId = resume.getUserId()  ← 继承归属
-     *     ├─ targetJob = job.getTitle()
-     *     └─ optimizedContent = optimizedResume
-     *     ↓
-     * 6. 组装 TargetedOptimizeResponse
-     *     ├─ versionId (新生成的版本ID)
-     *     ├─ optimizedContent
-     *     ├─ gaps
-     *     └─ changes
-     *     ↓
-     * 7. 写入 Redis 缓存 (1小时 + 随机偏移)
-     *     ↓
-     * 8. 返回响应
+    1.前置校验：校验简历是否可优化，校验岗位 ID 合法性。
+
+    2.缓存穿透保护：查 Redis 缓存，命中直接反序列化返回。若缓存损坏则主动删除并回源。
+
+    3.闭环优化：查询目标岗位 JD，调用 resumeOptimizeLoop.run()，基于覆盖率进行多轮 AI 迭代，产出优化后的简历内容、缺失词和修改轨迹。
+
+    4.组装“待确认项”（Pending）：提取 AI 在优化过程中“瞎编”或“夸大”的内容（Skills / Claims），生成 JSON 交由用户后续确认。
+
+    5.版本落库：生成一个全新的简历版本（状态为 DRAFT），记录版本名、覆盖率、待确认项等。
+
+    6.异步事件驱动：通过 afterCommitExecutor 在数据库事务提交后，向消息队列（如 RocketMQ/Kafka）发送事件，触发后续流程（如向量化入库、异步通知等）。
+
+    7.缓存与响应：组装包含“覆盖率、Gaps、Changes、优化建议”的富响应，写入随机 TTL 的 Redis 缓存后返回。
      */
     @Override
     public TargetedOptimizeResponse targetedOptimize(Long resumeId, Long jobId) {
+
+        Resume resume = loadOptimizableResume(resumeId);
+
+        if (jobId == null || jobId <= 0) {
+            throw new IllegalArgumentException("无效的岗位ID: " + jobId);
+        }
 
         log.info("开始定向优化: resumeId={}, jobId={}", resumeId, jobId);
 
@@ -237,13 +210,7 @@ public class OptimizeServiceImpl implements OptimizeService {
             log.warn("缓存读取失败，跳过缓存, cacheKey={}", cacheKey, e);
         }
 
-        // 3. 检查空值缓存
-        if (NULL_VALUE.equals(cachedValue)) {
-            log.warn("命中空值缓存, resumeId={}, jobId={}", resumeId, jobId);
-            throw new RuntimeException("简历或岗位不存在");
-        }
-
-        // 4. 检查正常缓存
+        // 3. 检查正常缓存
         if (cachedValue != null) {
             try {
                 TargetedOptimizeResponse cachedResult = objectMapper.readValue(
@@ -263,43 +230,11 @@ public class OptimizeServiceImpl implements OptimizeService {
             }
         }
 
-        // 5. 查询简历和岗位
-        Resume resume;
+        // 4. 查询岗位
         Job job;
         try {
-            resume = resumeService.findById(resumeId);
-            if (resume == null) {
-                // 简历不存在，缓存空值
-                try {
-                    stringRedisTemplate.opsForValue().set(
-                            cacheKey,
-                            NULL_VALUE,
-                            NULL_EXPIRE_MINUTES,
-                            TimeUnit.MINUTES
-                    );
-                } catch (Exception e) {
-                    log.warn("空值缓存写入失败: {}", e.getMessage());
-                }
-                throw new IllegalArgumentException("简历不存在: resumeId=" + resumeId);
-            }
-
-            if ("REVIEW".equals(resume.getOcrStatus())) {
-                throw new IllegalArgumentException("图片文字识别置信度较低，请先人工核对解析内容");
-            }
-
             job = jobMapper.selectById(jobId);
             if (job == null) {
-                // 岗位不存在，缓存空值
-                try {
-                    stringRedisTemplate.opsForValue().set(
-                            cacheKey,
-                            NULL_VALUE,
-                            NULL_EXPIRE_MINUTES,
-                            TimeUnit.MINUTES
-                    );
-                } catch (Exception e) {
-                    log.warn("空值缓存写入失败: {}", e.getMessage());
-                }
                 throw new IllegalArgumentException("岗位不存在: jobId=" + jobId);
             }
         } catch (IllegalArgumentException e) {
@@ -309,21 +244,6 @@ public class OptimizeServiceImpl implements OptimizeService {
             log.error("查询数据失败, resumeId={}, jobId={}", resumeId, jobId, e);
             throw new RuntimeException("系统异常，请稍后重试");
         }
-
-//        //6.调用AI定向优化
-//        String userPrompt = PromptTemplates.targetedOptimizeUser(
-//                resume.getRawText(),
-//                job.getTitle(),
-//                job.getDescription(),
-//                job.getRequirements()
-//        );
-//
-//        String aiResponse = aiService.chat(PromptTemplates.TARGETED_OPTIMIZE_SYSTEM, userPrompt);
-//
-//        log.info("定向优化 AI 响应: {}", aiResponse);
-//
-//        //7.解析 AI 返回的 JSON
-//        TargetedOptimizeResponse result = parseTargetedOptimizeResponse(aiResponse);
 
         OptimizeLoopResult loop = resumeOptimizeLoop.run(resume.getRawText(), job, maxRounds, minGain);
         String optimizedResume = loop.getBestContent();
@@ -385,14 +305,10 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .status("DRAFT")
                 .pendingJson(pendingJson)
                 .build();
-        resumeVersionMapper.insert(version);
+        saveVersionAndPublish(version);
 
         log.info("定向优化版本已保存: versionId={}, resumeId={}, userId={}, targetJob={}",
                 version.getId(), resumeId, resume.getUserId(), job.getTitle());
-
-        afterCommitExecutor.execute(() -> producer.publish(
-                resumeId, version.getId(), version.getUserId(), version.getOptimizedContent()));
-
         //9.组装响应
         TargetedOptimizeResponse response = TargetedOptimizeResponse.builder()
                 .versionId(version.getId())
@@ -410,12 +326,25 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .advice(loop.getAdvice())
                 .build();
 
-        //10. 写入缓存（有效期 1小时 + 随机偏移防雪崩）
-        try {
-            String resultJson = objectMapper.writeValueAsString(response);
+        //写redis
+        cacheTargetedResult(
+                cacheKey,
+                resumeId,
+                jobId,
+                response
+        );
 
+
+        return response;
+
+    }
+
+    private void cacheTargetedResult(String cacheKey, Long resumeId, Long jobId, TargetedOptimizeResponse response) {
+        try{
+            String resultJson = objectMapper.writeValueAsString(response);
             long baseSeconds = TimeUnit.HOURS.toSeconds(1);
-            long randomOffset = ThreadLocalRandom.current().nextLong(0, 600); // 0-600秒
+            long randomOffset =
+                    ThreadLocalRandom.current().nextLong(0, 600);
             long expireSeconds = baseSeconds + randomOffset;
 
             stringRedisTemplate.opsForValue().set(
@@ -424,15 +353,23 @@ public class OptimizeServiceImpl implements OptimizeService {
                     expireSeconds,
                     TimeUnit.SECONDS
             );
-            log.info("定向优化结果已缓存: resumeId={}, jobId={}, versionId={}, 过期时间={}秒",
-                    resumeId, jobId, version.getId(), expireSeconds);
-        } catch (Exception e) {
-            log.warn("缓存写入失败: {}", e.getMessage());
-            // 缓存失败不影响主流程
+
+            log.info(
+                    "定向优化结果已缓存: resumeId={}, jobId={}, versionId={}, expireSeconds={}",
+                    resumeId,
+                    jobId,
+                    response.getVersionId(),
+                    expireSeconds
+            );
+        }catch (Exception e) {
+            // 版本已经提交成功，缓存失败不能把接口改成失败。
+            log.warn(
+                    "写入定向优化缓存失败: resumeId={}, jobId={}, err={}",
+                    resumeId,
+                    jobId,
+                    e.getMessage()
+            );
         }
-
-        return response;
-
     }
 
 
@@ -441,24 +378,6 @@ public class OptimizeServiceImpl implements OptimizeService {
      */
     private String buildCacheKey(Long resumeId, String targetJob) {
         return CacheKeys.optimize(resumeId, targetJob);
-    }
-
-    /**
-     * 解析定向优化结果
-     */
-    private TargetedOptimizeResponse parseTargetedOptimizeResponse(String aiResponse) {
-
-        try {
-            // 清理 Markdown 代码块标记
-            String jsonStr = aiResponse
-                    .replaceAll("```json\\s*", "")
-                    .replaceAll("```\\s*", "")
-                    .trim();
-            return objectMapper.readValue(jsonStr, TargetedOptimizeResponse.class);
-        }catch (Exception e) {
-            log.error("解析定向优化结果失败，原始响应: {}", aiResponse, e);
-            throw new RuntimeException("AI 响应格式异常", e);
-        }
     }
 
     @Override
@@ -511,37 +430,25 @@ public class OptimizeServiceImpl implements OptimizeService {
             version.setVersionName(versionName);
         }
 
-        //插入数据库
-        resumeVersionMapper.insert(version);
-        log.info("保存精修版本成功，resumeId: {}, versionId: {}, versionName: {}",
-                resumeId, version.getId(), version.getVersionName());
-
-        afterCommitExecutor.execute(() -> producer.publish(
-                resumeId, version.getId(), userId, version.getOptimizedContent()));
-
-        return version;
+        return saveVersionAndPublish(version);
 
     }
 
     @Override
     public byte[] exportVersion(Long versionId, String format) {
+
+
+        if (format == null || format.isBlank()) {
+            throw new IllegalArgumentException("导出格式不能为空");
+        }
+
         log.info("导出版本, versionId: {}, format: {}", versionId, format);
 
         //1.查询版本 + 越权校验
-        Long userId = AuthContext.getUserId();
-        ResumeVersion version = resumeVersionMapper.selectById(versionId);
-
-        if (version == null) {
-            throw new IllegalArgumentException("版本不存在");
-        }
+        ResumeVersion version = findOwnedVersion(versionId);
 
         if (version.getPendingJson() != null && !"CONFIRMED".equals(version.getStatus())) {
             throw new IllegalArgumentException("该版本还有 AI 改动未确认，请先在版本页确认后再导出");
-        }
-
-        if (!userId.equals(version.getUserId())) {
-            log.warn("越权导出, versionId: {}, userId: {}", versionId, userId);
-            throw new IllegalArgumentException("无权导出该版本");
         }
 
         //2.获取内容
@@ -574,10 +481,7 @@ public class OptimizeServiceImpl implements OptimizeService {
 
         // 1. 查版本 + 越权校验
         Long userId = AuthContext.getUserId();
-        ResumeVersion version = resumeVersionMapper.selectById(versionId);
-        if (version == null) {
-            throw new IllegalArgumentException("版本不存在");
-        }
+        ResumeVersion version = findOwnedVersion(versionId);
 
         if (!userId.equals(version.getUserId())) {
             log.warn("越权确认, versionId={}, userId={}", versionId, userId);
@@ -596,6 +500,12 @@ public class OptimizeServiceImpl implements OptimizeService {
             version.setConfirmedAt(LocalDateTime.now());
             resumeVersionMapper.updateById(version);
             log.info("无待确认项，直接确认: versionId={}", versionId);
+
+            Long resumeId = version.getResumeId();
+
+            afterCommitExecutor.execute(() ->
+                    optimizeCacheEvictor.evictByResumeId(resumeId)
+            );
             return version;
         }
 
@@ -649,14 +559,24 @@ public class OptimizeServiceImpl implements OptimizeService {
         version.setConfirmedAt(LocalDateTime.now());
         resumeVersionMapper.updateById(version);
 
-        if (contentChanged) {
-            String finalContent = version.getOptimizedContent();
-            Long finalUserId = version.getUserId();
-            Long finalResumeId = version.getResumeId();
-            Long finalVersionId = version.getId();
-            afterCommitExecutor.execute(() -> producer.publish(
-                    finalResumeId, finalVersionId, finalUserId, finalContent));
-        }
+        long finalResumeId = version.getResumeId();
+        Long finalVersionId = version.getId();
+        Long finalUserId = version.getUserId();
+        boolean changed = contentChanged;
+        String finalContent = version.getOptimizedContent();
+
+        afterCommitExecutor.execute(() -> {
+            if (changed) {
+                producer.publish(
+                        finalResumeId,
+                        finalVersionId,
+                        finalUserId,
+                        finalContent
+                );
+            }
+
+            optimizeCacheEvictor.evictByResumeId(finalResumeId);
+        });
 
         log.info("版本确认成功: versionId={}, contentChanged={}", versionId, contentChanged);
         return version;
@@ -697,6 +617,83 @@ public class OptimizeServiceImpl implements OptimizeService {
         return text.replaceAll("(?s)```\\w*\\s*", "")
                 .replaceAll("```", "")
                 .trim();
+    }
+
+    private Resume loadOptimizableResume(Long resumeId) {
+        Resume resume = resumeService.findById(resumeId);
+
+        if ("REVIEW".equals(resume.getOcrStatus())) {
+            throw new IllegalArgumentException(
+                    "图片文字识别置信度较低，请先人工核对解析内容"
+            );
+        }
+
+        String text = resume.getRawText();
+        if (text == null || text.isBlank()) {
+            throw new IllegalStateException("简历内容为空，无法优化");
+        }
+
+        return resume;
+    }
+
+    /**
+     * 在短事务中保存优化版本，并在事务提交后发送 embedding 任务。
+     *
+     * AI 调用必须发生在调用本方法之前，避免长期占用数据库连接。
+     */
+    private ResumeVersion saveVersionAndPublish(ResumeVersion version) {
+        if (version == null) {
+            throw new IllegalArgumentException("优化版本不能为空");
+        }
+
+        transactionTemplate.executeWithoutResult(status -> {
+            resumeVersionMapper.insert(version);
+
+            if(version.getId()==null){
+                throw new IllegalStateException("优化版本保存失败：未生成版本ID");
+            }
+
+            Long resumeId = version.getResumeId();
+            Long versionId = version.getId();
+            Long userId = version.getUserId();
+            String content = version.getOptimizedContent();
+
+            // 当前存在活动事务，AfterCommitExecutor 会注册 afterCommit 回调。
+            afterCommitExecutor.execute(() -> producer.publish(
+                    resumeId,
+                    versionId,
+                    userId,
+                    content
+            ));
+        });
+
+        return version;
+    }
+
+
+    private String sha256(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 不可用", e);
+        }
+    }
+
+    private ResumeVersion findOwnedVersion(Long versionId) {
+        Long currentUserId = AuthContext.getUserId();
+        ResumeVersion version = resumeVersionMapper.selectById(versionId);
+
+        if (version == null || !currentUserId.equals(version.getUserId())) {
+            throw new IllegalArgumentException("版本不存在");
+        }
+
+        return version;
     }
 
 }

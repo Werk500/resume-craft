@@ -49,4 +49,35 @@ public class JobMatchServiceGateway {
         return null;
     }
 
+    @CircuitBreaker(
+            name = "jobMatchService",
+            fallbackMethod = "deleteVersionVectorFallback"
+    )
+    public int deleteVersionVector(
+            Long resumeId,
+            Long versionId
+    ) {
+        Integer deleted =
+                jobMatchClient.deleteResumeVersionVector(
+                        resumeId,
+                        versionId
+                );
+        return deleted == null ? 0 : deleted;
+    }
+
+    public int deleteVersionVectorFallback(
+            Long resumeId,
+            Long versionId,
+            Throwable t
+    ) {
+        log.warn(
+                "删除版本向量失败（熔断降级，不影响版本删除）: " +
+                        "resumeId={}, versionId={}, err={}",
+                resumeId,
+                versionId,
+                t.getMessage()
+        );
+        return 0;
+    }
+
 }
