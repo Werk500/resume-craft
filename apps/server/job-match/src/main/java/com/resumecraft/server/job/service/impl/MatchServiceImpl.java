@@ -1,10 +1,7 @@
 package com.resumecraft.server.job.service.impl;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.resumecraft.server.ai.AiService;
-import com.resumecraft.server.ai.impl.PromptTemplates;
 import com.resumecraft.server.common.ApiResponse;
 import com.resumecraft.server.common.cache.CacheKeys;
 import com.resumecraft.server.common.dto.ResumeBriefDTO;
@@ -21,17 +18,14 @@ import com.resumecraft.server.job.service.MatchService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@Transactional(rollbackFor = Exception.class)
 @Slf4j
 public class MatchServiceImpl implements MatchService {
 
@@ -47,9 +41,8 @@ public class MatchServiceImpl implements MatchService {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private MatchEngine matchEngine;
-
-    private static final String NULL_VALUE = "NULL";
-    private static final long NULL_EXPIRE_MINUTES = 5;
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
     /**
      * 人岗匹配分析
@@ -129,11 +122,6 @@ public class MatchServiceImpl implements MatchService {
                 log.warn("缓存读取失败，跳过缓存, cacheKey={}", cacheKey, e);
             }
 
-            // 检查空值缓存
-            if (NULL_VALUE.equals(cachedValue)) {
-                log.warn("命中空值缓存, resumeId={}, jobId={}, versionId={}", resumeId, jobId, versionId);
-                throw new RuntimeException("简历或岗位不存在");
-            }
             // 检查正常缓存
             if (cachedValue != null) {
                 try {
@@ -143,20 +131,21 @@ public class MatchServiceImpl implements MatchService {
                     return ApiResponse.ok(cachedResult);
                 } catch (Exception e) {
                     log.warn("缓存反序列化失败，将重新生成: {}", e.getMessage());
-                    stringRedisTemplate.delete(cacheKey);
+                    try {
+                        stringRedisTemplate.delete(cacheKey);
+                    } catch (Exception ex) {
+                        log.warn(
+                                "删除损坏匹配缓存失败: cacheKey={}, err={}",
+                                cacheKey,
+                                ex.getMessage()
+                        );
+                    }
                 }
+
             }
         } else {
             log.info("强制刷新模式，跳过缓存: resumeId={}, jobId={}, versionId={}", resumeId, jobId, versionId);
         }
-//        //5.本轮先保留 AI 打分（P2-2 才替换成 MatchEngine）
-//        String userPrompt = PromptTemplates.matchUser(
-//                resumeText, job.getTitle(), job.getDescription(), job.getRequirements());
-//
-//        MatchResult matchResult = parseMatchResult(aiService.chat(PromptTemplates.MATCH_SYSTEM, userPrompt));
-//        matchResult.setJobId(jobId);
-//        matchResult.setResumeId(resumeId);
-//        matchResult.setUserId(resumeUserId);
 
         // 传入上下文：语义评分可据此走向量检索（versionId=null 表示主简历）
         MatchResult matchResult = matchEngine.execute(resumeText, job,
@@ -166,36 +155,15 @@ public class MatchServiceImpl implements MatchService {
         matchResult.setUserId(resumeUserId);
 
         //6.入库
-        matchResultMapper.insert(matchResult);
+        saveMatchResult(matchResult);
 
         //7.写入缓存
-        try {
-            String resultJson = objectMapper.writeValueAsString(matchResult);
-
-            // 基础1小时 + 随机0~10分钟，防止缓存雪崩
-            long baseSeconds = TimeUnit.HOURS.toSeconds(1);
-            long randomOffset = ThreadLocalRandom.current().nextLong(0, 600);
-            long expireSeconds = baseSeconds + randomOffset;
-
-            stringRedisTemplate.opsForValue().set(cacheKey, resultJson, expireSeconds, TimeUnit.SECONDS);
-
-            log.info("匹配结果已缓存: resumeId={}, jobId={}, resultId={}, 过期时间={}秒",
-                    resumeId, jobId, matchResult.getId(), expireSeconds);
-        } catch (Exception e) {
-            log.warn("缓存写入失败: {}", e.getMessage());
-            // 缓存失败不影响主流程
-        }
+        cacheMatchResult(cacheKey, matchResult);
 
         return ApiResponse.ok(matchResult);
 
         }
 
-    /**
-     * 构建缓存 key
-     */
-    private String buildCacheKey(Long resumeId, Long jobId) {
-        return CacheKeys.match(resumeId, jobId);
-    }
     /**
      * 构建缓存 key（包含版本信息）
      */
@@ -213,5 +181,55 @@ public class MatchServiceImpl implements MatchService {
                 "简历原文：\n" + (resume.getRawText() == null ? "无" : resume.getRawText());
 
     }
+
+    private void saveMatchResult(MatchResult matchResult) {
+        transactionTemplate.executeWithoutResult(status -> {
+            matchResultMapper.insert(matchResult);
+
+            if (matchResult.getId() == null) {
+                throw new IllegalStateException(
+                        "匹配结果保存失败：未生成主键"
+                );
+            }
+        });
+    }
+
+    /**
+     * 缓存写入
+     * @param cacheKey
+     * @param result
+     */
+    private void cacheMatchResult(
+            String cacheKey,
+            MatchResult result
+    ) {
+        try {
+            String json = objectMapper.writeValueAsString(result);
+
+            long baseSeconds = TimeUnit.HOURS.toSeconds(1);
+            long randomOffset =
+                    ThreadLocalRandom.current().nextLong(0, 600);
+
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    json,
+                    baseSeconds + randomOffset,
+                    TimeUnit.SECONDS
+            );
+
+            log.info(
+                    "匹配结果已缓存: cacheKey={}, resultId={}",
+                    cacheKey,
+                    result.getId()
+            );
+        } catch (Exception e) {
+            log.warn(
+                    "匹配缓存写入失败: cacheKey={}, err={}",
+                    cacheKey,
+                    e.getMessage()
+            );
+        }
+    }
+
 
 }

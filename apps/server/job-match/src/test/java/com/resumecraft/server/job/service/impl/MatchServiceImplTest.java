@@ -19,11 +19,13 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -46,6 +48,8 @@ class MatchServiceImplTest {
     private StringRedisTemplate stringRedisTemplate;
     @Mock
     private MatchEngine matchEngine;
+    @Mock
+    private TransactionTemplate transactionTemplate;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -59,6 +63,12 @@ class MatchServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        lenient().doAnswer(invocation -> {
+            invocation.<java.util.function.Consumer<org.springframework.transaction.TransactionStatus>>
+                    getArgument(0).accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
         // match() 会先查岗位，岗位为 null 会提前返回，测不到后续分支
         when(jobMapper.selectById(JOB_ID)).thenReturn(Job.builder()
                 .id(JOB_ID)
@@ -80,6 +90,7 @@ class MatchServiceImplTest {
                 .build());
 
         MatchResult engineResult = MatchResult.builder()
+                .id(MATCH_ID)
                 .resumeId(RESUME_ID)
                 .jobId(JOB_ID)
                 .overallScore(82.0)

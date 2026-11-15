@@ -33,7 +33,7 @@ export default function MatchPage() {
       .catch((e) => setError(e instanceof Error ? e.message : "加载失败"));
   }, []);
 
-  async function handleMatch() {
+  async function handleMatch(forceRefresh = false) {
     if (!resumeId || !jobId) {
       setError("请选择简历和岗位");
       return;
@@ -48,7 +48,7 @@ export default function MatchPage() {
         body: JSON.stringify({
           resumeId: Number(resumeId),
           jobId: Number(jobId),
-          forceRefresh: true,
+          forceRefresh,
         }),
       });
       setResult(matched);
@@ -155,7 +155,7 @@ export default function MatchPage() {
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <button
-            onClick={handleMatch}
+            onClick={() => handleMatch(false)}
             disabled={matching || optimizing || resumes.length === 0 || jobs.length === 0}
             className="rounded-lg bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"
           >
@@ -173,7 +173,16 @@ export default function MatchPage() {
 
       {/* 结果区 */}
       {result && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-3">
+          <div className="flex justify-end">
+            <button
+              onClick={() => handleMatch(true)}
+              disabled={matching}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {matching ? "重新匹配中…" : "重新匹配"}
+            </button>
+          </div>
           <MatchScoreCard result={result} />
         </div>
       )}
