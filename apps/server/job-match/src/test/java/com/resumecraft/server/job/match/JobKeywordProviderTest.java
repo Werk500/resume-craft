@@ -59,6 +59,21 @@ class JobKeywordProviderTest {
                 .build();
     }
 
+    private Job job(
+            Long id,
+            String title,
+            String description,
+            String requirements
+    ) {
+        return Job.builder()
+                .id(id)
+                .company("测试公司")
+                .title(title)
+                .description(description)
+                .requirements(requirements)
+                .build();
+    }
+
     @Test
     @DisplayName("缓存命中：直接返回缓存，不再调 AI（这是分数可复现的关键）")
     void shouldReturnCachedKeywordsWithoutCallingAi() {
@@ -109,5 +124,83 @@ class JobKeywordProviderTest {
         // 规则库里命中 java / spring / spring boot / mysql 等，至少不为空
         assertThat(keywords).isNotEmpty();
         assertThat(keywords).contains("java");
+    }
+
+    @Test
+    @DisplayName("AI 返回的大小写重复关键词只保留一个")
+    void shouldDeduplicateAiKeywords() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
+                .thenReturn("""
+                        {
+                          "keywords": [
+                            "Java", "java", "JAVA",
+                            "MySQL", "mysql"
+                          ]
+                        }
+                        """);
+
+        List<String> keywords = provider.keywords(job());
+
+        assertThat(keywords).containsExactly("Java", "MySQL");
+    }
+
+    @Test
+    @DisplayName("JavaScript 规则兜底不能误产出 Java")
+    void shouldNotTreatJavaScriptAsJava() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
+                .thenReturn("not-json");
+
+        List<String> keywords = provider.keywords(job(
+                10L,
+                "前端开发工程师",
+                "负责 Web 前端开发",
+                "熟悉 JavaScript"
+        ));
+
+        assertThat(keywords).contains("javascript");
+        assertThat(keywords).doesNotContain("java");
+    }
+
+    @Test
+    @DisplayName("规则库无命中时不注入 Java、Spring、MySQL 默认词")
+    void shouldUseTitleInsteadOfInventedDefaultKeywords() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
+                .thenReturn("not-json");
+
+        List<String> keywords = provider.keywords(job(
+                11L,
+                "UI 设计师",
+                "负责产品视觉设计",
+                "熟悉 Figma 和 Sketch"
+        ));
+
+        assertThat(keywords).containsExactly("ui 设计师");
+        assertThat(keywords)
+                .doesNotContain("java", "spring", "mysql");
+    }
+
+    @Test
+    @DisplayName("Spring Boot 命中时不再重复计算泛化 Spring")
+    void shouldPreferSpecificSpringKeyword() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(aiService.chat(eq(PromptTemplates.EXTRACT_KEYWORDS_SYSTEM), anyString()))
+                .thenReturn("not-json");
+
+        List<String> keywords = provider.keywords(job(
+                12L,
+                "后端开发工程师",
+                "负责服务端开发",
+                "熟悉 Spring Boot"
+        ));
+
+        assertThat(keywords).contains("spring boot");
+        assertThat(keywords).doesNotContain("spring");
     }
 }

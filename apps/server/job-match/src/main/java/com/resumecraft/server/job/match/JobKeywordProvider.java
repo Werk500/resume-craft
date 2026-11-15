@@ -1,6 +1,5 @@
 package com.resumecraft.server.job.match;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,9 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 
 @Slf4j
 @Component
@@ -27,26 +26,49 @@ public class JobKeywordProvider {
 
     /** JD 不常改，TTL 给长一点；内容变了 hash 会变，旧 key 自然过期，不需要手动清理 */
     private static final Duration TTL = Duration.ofDays(30);
+    private static final int MAX_KEYWORDS = 30;
+
+    private static final List<String> COMMON_RULE_KEYWORDS = List.of(
+            "java", "python", "go", "rust", "c++", "javascript",
+            "typescript", "spring", "spring boot", "mybatis",
+            "hibernate", "mysql", "postgresql", "redis", "mongodb",
+            "elasticsearch", "docker", "kubernetes", "k8s", "jenkins",
+            "git", "linux", "微服务", "分布式", "高并发", "消息队列",
+            "kafka", "rabbitmq", "vue", "react", "angular", "html",
+            "css", "前端", "后端", "数据分析", "机器学习", "ai",
+            "人工智能", "算法"
+    );
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     @Resource private AiService aiService;
     @Resource private ObjectMapper objectMapper;
 
+
     public List<String> keywords(Job job){
-        String text = job.getTitle() + "\n" + job.getDescription() + "\n" + job.getRequirements();
+        String text = buildJobText(job);
         String key = CacheKeys.jdKeywords(job.getId(), sha256(text));
 
         try {
             String cached = stringRedisTemplate.opsForValue().get(key);
             if(cached != null){
-                return objectMapper.readValue(cached, new TypeReference<List<String>>(){});
+                List<String> cachedKeywords = objectMapper.readValue(
+                        cached,
+                        new TypeReference<List<String>>() {}
+                );
+                List<String> normalized = normalizeKeywords(cachedKeywords);
+                if (!normalized.isEmpty()) {
+                    return normalized;
+                }
             }
         } catch (Exception e) {
             log.warn("JD 关键词缓存读取失败，跳过缓存: {}", e.getMessage());
         }
 
-        List<String> keywords = extractByAi(job);
+        List<String> keywords = normalizeKeywords(extractByAi(job));
+        if (keywords.isEmpty()) {
+            keywords = extractKeywordsByRule(job);
+        }
 
         try {
             stringRedisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(keywords), TTL);
@@ -80,13 +102,14 @@ public class JobKeywordProvider {
             JsonNode keywordsNode = json.get("keywords");
 
             if (keywordsNode != null && keywordsNode.isArray()) {
-                List<String> keywords = new ArrayList<>();
+                List<String> candidates = new ArrayList<>();
                 for (JsonNode node : keywordsNode) {
                     String keyword = node.asText().trim();
                     if (!keyword.isEmpty()) {
-                        keywords.add(keyword);
+                        candidates.add(keyword);
                     }
                 }
+                List<String> keywords = normalizeKeywords(candidates);
                 if (!keywords.isEmpty()) {
                     return keywords;
                 }
@@ -105,37 +128,62 @@ public class JobKeywordProvider {
      * 规则兜底：从职位要求和描述中提取关键词
      */
     private List<String> extractKeywordsByRule(Job job) {
-        Set<String> keywords = new HashSet<>();
+        String normalizedText = MatchTextNormalizer.normalize(
+                buildJobText(job)
+        );
 
-        String text = (job.getTitle() + " " +
-                job.getDescription() + " " +
-                job.getRequirements()).toLowerCase();
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
 
-        // 常见技术关键词库（可扩展）
-        String[] commonKeywords = {
-                "java", "python", "go", "rust", "c++", "javascript", "typescript",
-                "spring", "springboot", "spring boot", "mybatis", "hibernate",
-                "mysql", "postgresql", "redis", "mongodb", "elasticsearch",
-                "docker", "kubernetes", "k8s", "jenkins", "git", "linux",
-                "微服务", "分布式", "高并发", "消息队列", "kafka", "rabbitmq",
-                "vue", "react", "angular", "html", "css", "前端", "后端",
-                "数据分析", "机器学习", "ai", "人工智能", "算法"
-        };
+        for (String keyword : COMMON_RULE_KEYWORDS) {
+            String normalizedKeyword =
+                    MatchTextNormalizer.normalizeKeyword(keyword);
 
-        for (String kw : commonKeywords) {
-            if (text.contains(kw)) {
-                keywords.add(kw);
+            if (MatchTextNormalizer.containsKeyword(
+                    normalizedText,
+                    normalizedKeyword
+            )) {
+                keywords.add(normalizedKeyword);
             }
         }
 
-        // 如果提取到的关键词太少，加一些默认词
-        if (keywords.size() < 3) {
-            keywords.add("java");
-            keywords.add("spring");
-            keywords.add("mysql");
+        // 更具体的技能优先，避免同义层级重复放大覆盖率
+        if (keywords.contains("spring boot")) {
+            keywords.remove("spring");
+        }
+        if (keywords.contains("kubernetes")) {
+            keywords.remove("k8s");
         }
 
-        return new ArrayList<>(keywords);
+        if (keywords.isEmpty()) {
+            String title = MatchTextNormalizer.normalizeKeyword(
+                    Objects.requireNonNullElse(job.getTitle(), "")
+            );
+
+            if (!title.isBlank()) {
+                return List.of(title);
+            }
+        }
+
+        return keywords.stream()
+                .limit(MAX_KEYWORDS)
+                .toList();
+    }
+
+    private List<String> normalizeKeywords(List<String> rawKeywords) {
+        return MatchTextNormalizer.normalizeAndDedupe(rawKeywords)
+                .stream()
+                .limit(MAX_KEYWORDS)
+                .map(MatchTextNormalizer.KeywordTerm::display)
+                .toList();
+    }
+
+    private String buildJobText(Job job) {
+        return String.join(
+                "\n",
+                Objects.requireNonNullElse(job.getTitle(), ""),
+                Objects.requireNonNullElse(job.getDescription(), ""),
+                Objects.requireNonNullElse(job.getRequirements(), "")
+        );
     }
 
     /**

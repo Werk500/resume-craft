@@ -111,7 +111,9 @@ public class MatchEngine {
     /** 只算确定性维度：关键词覆盖 + 硬性要求。用于优化闭环的每轮打分（快、可复现、不花 token） */
     public MatchResult executeDeterministic(String resumeText, Job job) {
         List<String> keywords = jobKeywordProvider.keywords(job);
+
         KeywordMatchResult keyword = calculateKeywordMatch(resumeText, keywords);
+
         HardRequirementResult hard = calculateHardRequirements(resumeText, job);
 
         return MatchResult.builder()
@@ -127,42 +129,25 @@ public class MatchEngine {
      */
     private KeywordMatchResult calculateKeywordMatch(String resumeText, List<String> keywords) {
         // 归一化简历文本
-        String normalizedResume = normalizeText(resumeText);// 全文只归一化一次
+        String normalizedResume = MatchTextNormalizer.normalize(resumeText);// 全文只归一化一次
 
-        LinkedHashMap<String,String> uniqueKeywords = new LinkedHashMap<>();
+        List<MatchTextNormalizer.KeywordTerm> uniqueKeywords =
+                MatchTextNormalizer.normalizeAndDedupe(keywords);
 
         List<KeywordHit> hits = new ArrayList<>();
         List<String> missingKeywords = new ArrayList<>();
 
-        for (String keyword : keywords) {
+        for (MatchTextNormalizer.KeywordTerm term : uniqueKeywords) {
 
-            if (keyword == null || keyword.isBlank()) {
-                continue;
-            }
-            //归一化关键词
-            String normalized = normalizeKeyword(keyword);
-
-            if(normalized.isBlank()) {
-                continue;
-            }
-
-            uniqueKeywords.putIfAbsent(normalized, keyword.trim());
-        }
-
-
-        for (Map.Entry<String, String> entry : uniqueKeywords.entrySet()) {
-            String normalizedKeyword = entry.getKey();
-            String displayKeyword = entry.getValue();
-
-            boolean isHit = containsKeyword(
+            boolean isHit = MatchTextNormalizer.containsKeyword(
                     normalizedResume,
-                    normalizedKeyword
+                    term.normalized()
             );
 
-            hits.add(buildHit(displayKeyword, isHit));
+            hits.add(buildHit(term.display(), isHit));
 
             if (!isHit) {
-                missingKeywords.add(displayKeyword);
+                missingKeywords.add(term.display());
             }
         }
 
@@ -179,52 +164,6 @@ public class MatchEngine {
                 .missingKeywords(missingKeywords)
                 .build();
 
-    }
-
-    /**
-     * 归一化文本：大小写、全半角、特殊字符处理
-     */
-    private String normalizeText(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder sb = new StringBuilder(text.length());
-        boolean previousWhitespace = false;
-
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-
-            // 全角字母、数字和符号转半角
-            if (c >= '！' && c <= '～') {
-                c = (char) (c - 0xFEE0);
-            }
-
-            if (Character.isWhitespace(c)) {
-                if (!previousWhitespace && sb.length() > 0) {
-                    sb.append(' ');
-                }
-                previousWhitespace = true;
-                continue;
-            }
-
-            previousWhitespace = false;
-            sb.append(Character.toLowerCase(c));
-        }
-
-        return sb.toString()
-                .trim()
-                .replace("springboot", "spring boot")
-                .replace("spring-boot", "spring boot")
-                .replace("spring-cloud", "springcloud")
-                .replace("spring cloud", "springcloud");
-    }
-
-    /**
-     * 归一化关键词
-     */
-    private String normalizeKeyword(String keyword) {
-        return normalizeText(keyword);
     }
 
     private KeywordHit buildHit(String keyword, boolean hit) {
@@ -349,7 +288,7 @@ public class MatchEngine {
      * 硬性条件匹配
      */
     private HardRequirementResult calculateHardRequirements(String resumeText, Job job) {
-        String normalizedResume = normalizeText(resumeText);
+        String normalizedResume = MatchTextNormalizer.normalize(resumeText);
 
         // 解析学历要求
         String educationReq = parseEducationRequirement(job.getRequirements());
@@ -524,61 +463,5 @@ public class MatchEngine {
     }
 
 
-    private boolean containsKeyword(
-            String text,
-            String keyword
-    ) {
-        if (text == null
-                || text.isEmpty()
-                || keyword == null
-                || keyword.isBlank()) {
-            return false;
-        }
 
-        // 中文等非 ASCII 关键词直接子串查找
-        if (!isAsciiKeyword(keyword)) {
-            return text.contains(keyword);
-        }
-
-        int fromIndex = 0;
-
-        while (fromIndex <= text.length() - keyword.length()) {
-            int index = text.indexOf(keyword, fromIndex);
-
-            if (index < 0) {
-                return false;
-            }
-
-            int before = index - 1;
-            int after = index + keyword.length();
-
-            boolean leftBoundary = before < 0
-                    || !isAsciiWordCharacter(text.charAt(before));
-
-            boolean rightBoundary = after >= text.length()
-                    || !isAsciiWordCharacter(text.charAt(after));
-
-            if (leftBoundary && rightBoundary) {
-                return true;
-            }
-
-            fromIndex = index + 1;
-        }
-
-        return false;
-    }
-
-    private boolean isAsciiKeyword(String keyword) {
-        for (int i = 0; i < keyword.length(); i++) {
-            if (keyword.charAt(i) > 127) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean isAsciiWordCharacter(char c) {
-        return (c >= 'a' && c <= 'z')
-                || (c >= '0' && c <= '9');
-    }
 }
