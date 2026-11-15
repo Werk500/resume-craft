@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class ConfirmDecision {
     private String type;    // SKILL | CLAIM，分别对应 pendingSkills / pendingClaims
     private String target;  // 待确认项的名字（技能词或改写稿原话）
-    private String action;  // ACCEPT=保留 / REMOVE=不认领（已删或需删）
+    /** ACCEPT=保留正文；REMOVE=用户已将对应内容从正文删除 */
+    private String action;
     private String note;    // 可选：用户备注
 }

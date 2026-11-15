@@ -17,7 +17,11 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
   const [diffPair, setDiffPair] = useState<[ResumeVersion, ResumeVersion] | null>(null);
   // 正在逐条确认的版本 + 已做出的处置（key = "SKILL:xxx" / "CLAIM:yyy"）
   const [confirming, setConfirming] = useState<
-    { version: ResumeVersion; decisions: Record<string, "ACCEPT" | "REMOVE"> } | null
+    {
+      version: ResumeVersion;
+      decisions: Record<string, "ACCEPT" | "REMOVE">;
+      content: string;
+    } | null
   >(null);
   const [busy, setBusy] = useState(false);
 
@@ -96,17 +100,34 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
   /** 提交确认：把所有待确认项连同处置结果发给后端，后端校验完整性后才置为 CONFIRMED */
   async function handleConfirm() {
     if (!confirming) return;
-    const { version, decisions } = confirming;
+    const { version, decisions, content } = confirming;
+    const decisionList = Object.entries(decisions).map(([key, action]) => {
+      const [type, ...rest] = key.split(":");
+      return { type, target: rest.join(":"), action };
+    });
+    const removeItems = decisionList.filter((item) => item.action === "REMOVE");
+    const normalizedContent = normalizeForMatch(content);
+    const unresolved = removeItems.filter((item) =>
+      normalizedContent.includes(normalizeForMatch(item.target)),
+    );
+
+    if (removeItems.length > 0 && !content.trim()) {
+      setError("选择“我删掉”后，确认正文不能为空");
+      return;
+    }
+    if (unresolved.length > 0) {
+      setError(`以下内容仍在正文中，请先删除：${unresolved.map((item) => item.target).join("、")}`);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       await api(`/api/v1/version/${version.id}/confirm`, {
         method: "POST",
         body: JSON.stringify({
-          decisions: Object.entries(decisions).map(([key, action]) => {
-            const [type, ...rest] = key.split(":");
-            return { type, target: rest.join(":"), action };
-          }),
+          decisions: decisionList,
+          content,
         }),
       });
       setConfirming(null);
@@ -271,7 +292,13 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
                 <div className="flex shrink-0 items-center gap-2">
                   {needsConfirm && (
                     <button
-                      onClick={() => setConfirming({ version: v, decisions: {} })}
+                      onClick={() =>
+                        setConfirming({
+                          version: v,
+                          decisions: {},
+                          content: v.optimizedContent,
+                        })
+                      }
                       className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
                     >
                       逐条确认
@@ -298,6 +325,7 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
                 <VersionConfirmPanel
                   version={v}
                   decisions={confirming.decisions}
+                  content={confirming.content}
                   busy={busy}
                   onDecide={(key, action) =>
                     setConfirming((prev) =>
@@ -313,6 +341,9 @@ export default function VersionsPage({ params }: { params: { id: string } }) {
                       all.claims.forEach((c) => (decisions[`CLAIM:${c.claim}`] = "ACCEPT"));
                       return { ...prev, decisions };
                     })
+                  }
+                  onContentChange={(content) =>
+                    setConfirming((prev) => (prev ? { ...prev, content } : prev))
                   }
                   onSubmit={handleConfirm}
                   onCancel={() => setConfirming(null)}
@@ -362,23 +393,37 @@ function parsePendingItems(v: ResumeVersion): { skills: AddedSkill[]; claims: Ov
 function VersionConfirmPanel({
   version,
   decisions,
+  content,
   busy,
   onDecide,
   onQuickAll,
+  onContentChange,
   onSubmit,
   onCancel,
 }: {
   version: ResumeVersion;
   decisions: Record<string, "ACCEPT" | "REMOVE">;
+  content: string;
   busy: boolean;
   onDecide: (key: string, action: "ACCEPT" | "REMOVE") => void;
   onQuickAll: () => void;
+  onContentChange: (content: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }) {
   const pending = parsePendingItems(version);
   const total = pending.skills.length + pending.claims.length;
   const decided = Object.keys(decisions).length;
+  const hasRemove = Object.values(decisions).includes("REMOVE");
+  const normalizedContent = normalizeForMatch(content);
+  const unresolvedRemove = Object.entries(decisions).some(([key, action]) => {
+    if (action !== "REMOVE") return false;
+    const [, ...targetParts] = key.split(":");
+    return normalizedContent.includes(normalizeForMatch(targetParts.join(":")));
+  });
+  const removeEditMissing = hasRemove && content.trim() === version.optimizedContent.trim();
+  const submitDisabled =
+    decided < total || busy || removeEditMissing || unresolvedRemove;
 
   return (
     <div className="border-t border-zinc-200 bg-zinc-50 p-4">
@@ -414,6 +459,38 @@ function VersionConfirmPanel({
         ))}
       </div>
 
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label
+            htmlFor={`confirm-content-${version.id}`}
+            className="text-xs font-medium text-zinc-700"
+          >
+            确认后的简历正文
+          </label>
+          <button
+            type="button"
+            onClick={() => onContentChange(version.optimizedContent)}
+            className="text-[11px] text-zinc-500 hover:underline"
+          >
+            恢复 AI 原文
+          </button>
+        </div>
+        <textarea
+          id={`confirm-content-${version.id}`}
+          value={content}
+          onChange={(event) => onContentChange(event.target.value)}
+          spellCheck={false}
+          className="min-h-72 w-full resize-y rounded-lg border border-zinc-300 bg-white p-3 font-mono text-xs leading-relaxed text-zinc-700 outline-none transition focus:border-zinc-900 focus-visible:ring-2 focus-visible:ring-brand-500/20"
+        />
+        {hasRemove && (
+          <p className={`mt-2 text-xs ${unresolvedRemove ? "text-red-600" : "text-amber-700"}`}>
+            {unresolvedRemove
+              ? "选择“我删掉”的内容仍存在于正文中，请先删除对应文字。"
+              : "正文修改已包含删除操作，可以提交确认。"}
+          </p>
+        )}
+      </div>
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={onQuickAll}
@@ -423,7 +500,7 @@ function VersionConfirmPanel({
         </button>
         <button
           onClick={onSubmit}
-          disabled={decided < total || busy}
+          disabled={submitDisabled}
           className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "提交中…" : "提交确认"}
@@ -437,6 +514,10 @@ function VersionConfirmPanel({
       </div>
     </div>
   );
+}
+
+function normalizeForMatch(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function ConfirmRow({

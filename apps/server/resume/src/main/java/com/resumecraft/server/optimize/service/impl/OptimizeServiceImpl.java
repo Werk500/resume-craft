@@ -35,9 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -474,19 +472,13 @@ public class OptimizeServiceImpl implements OptimizeService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ResumeVersion confirm(Long versionId, ConfirmRequest req) {
         log.info("确认版本: versionId={}, decisions={}", versionId,
                 req == null || req.getDecisions() == null ? 0 : req.getDecisions().size());
 
         // 1. 查版本 + 越权校验
-        Long userId = AuthContext.getUserId();
         ResumeVersion version = findOwnedVersion(versionId);
-
-        if (!userId.equals(version.getUserId())) {
-            log.warn("越权确认, versionId={}, userId={}", versionId, userId);
-            throw new IllegalArgumentException("无权操作该版本");
-        }
 
         // 2. 已是 CONFIRMED → 幂等返回
         if ("CONFIRMED".equals(version.getStatus())) {
@@ -494,67 +486,77 @@ public class OptimizeServiceImpl implements OptimizeService {
             return version;
         }
 
-        // 3. pendingJson 为空 → 没有待确认项，直接置 CONFIRMED
-        if (version.getPendingJson() == null || version.getPendingJson().isBlank()) {
-            version.setStatus("CONFIRMED");
-            version.setConfirmedAt(LocalDateTime.now());
-            resumeVersionMapper.updateById(version);
-            log.info("无待确认项，直接确认: versionId={}", versionId);
-
-            Long resumeId = version.getResumeId();
-
-            afterCommitExecutor.execute(() ->
-                    optimizeCacheEvictor.evictByResumeId(resumeId)
-            );
-            return version;
+        if (req == null
+                || req.getDecisions() == null
+                || req.getDecisions().isEmpty()) {
+            throw new IllegalArgumentException("必须给出每一项的处置结果");
         }
 
-        // 4. 解析快照，构造待处理集合
-        PendingSnapshot snapshot;
-        try {
-            snapshot = objectMapper.readValue(version.getPendingJson(), PendingSnapshot.class);
-        } catch (Exception e) {
-            log.error("pending_json 解析失败: versionId={}", versionId, e);
-            throw new RuntimeException("版本待确认项数据损坏，请联系管理员");
+        //解析快照
+        PendingSnapshot snapshot = new PendingSnapshot();
+
+        if (version.getPendingJson() != null
+                && !version.getPendingJson().isBlank()) {
+            try {
+                snapshot = objectMapper.readValue(
+                        version.getPendingJson(),
+                        PendingSnapshot.class
+                );
+            } catch (Exception e) {
+                log.error(
+                        "pending_json 解析失败: versionId={}",
+                        versionId,
+                        e
+                );
+                throw new RuntimeException(
+                        "版本待确认项数据损坏，请联系管理员",
+                        e
+                );
+            }
         }
+
 
         Set<String> pending = buildPendingKeys(snapshot);
 
-        // 5. 校验 action + 逐条移出
-        List<ConfirmDecision> decisions = req==null||req.getDecisions() == null?
-                List.of():req.getDecisions();
+        Map<String, ConfirmDecision> decisionMap =
+                normalizeAndValidateDecisions(req.getDecisions());
 
-        for (ConfirmDecision d : decisions) {
-            if (d == null || d.getAction() == null) {
-                throw new IllegalArgumentException("处置项缺少 action");
+        // 每个决策必须对应快照中的真实待确认项。
+        for (String key : decisionMap.keySet()) {
+            if (!pending.remove(key)) {
+                throw new IllegalArgumentException(
+                        "处置项不存在、重复或已经处理：" + key
+                );
             }
-            if (!"ACCEPT".equals(d.getAction()) && !"REMOVE".equals(d.getAction())) {
-                throw new IllegalArgumentException("非法 action: " + d.getAction() + "，只能是 ACCEPT / REMOVE");
-            }
-
-            String key = d.getType() + ":" + d.getTarget();
-            if (key.isBlank()) {
-                throw new IllegalArgumentException("处置项缺少 type ");
-            }
-            pending.remove(key);   // 多余或重复的 key 直接忽略，不报错
         }
 
         // 剩余非空 → 400
         if (!pending.isEmpty()) {
             List<String> preview = pending.stream().limit(3).toList();
+
             throw new IllegalArgumentException(
                     "还有 " + pending.size() + " 项未处置：" + String.join("、", preview));
         }
 
-        // 6. content 非空且与原内容不同 → 覆盖
-        boolean contentChanged = false;
-        if(req.getContent() != null && !req.getContent().isBlank()
-                && !req.getContent().equals(version.getOptimizedContent())) {
-            version.setOptimizedContent(req.getContent());
-            contentChanged = true;
-        }
+        List<ConfirmDecision> removeDecisions =
+                decisionMap.values().stream()
+                        .filter(item -> "REMOVE".equals(item.getAction()))
+                        .toList();
 
-        // 7. 置 CONFIRMED
+        //最终正文校验
+        String finalContent = determineFinalContent(
+                version,
+                req.getContent(),
+                removeDecisions
+        );
+
+        boolean contentChanged = !Objects.equals(
+                finalContent,
+                version.getOptimizedContent()
+        );
+
+        // 7.  CONFIRMED
+        version.setOptimizedContent(finalContent);
         version.setStatus("CONFIRMED");
         version.setConfirmedAt(LocalDateTime.now());
         resumeVersionMapper.updateById(version);
@@ -562,16 +564,15 @@ public class OptimizeServiceImpl implements OptimizeService {
         long finalResumeId = version.getResumeId();
         Long finalVersionId = version.getId();
         Long finalUserId = version.getUserId();
-        boolean changed = contentChanged;
-        String finalContent = version.getOptimizedContent();
+        String publishContent = version.getOptimizedContent();
 
         afterCommitExecutor.execute(() -> {
-            if (changed) {
+            if (contentChanged) {
                 producer.publish(
                         finalResumeId,
                         finalVersionId,
                         finalUserId,
-                        finalContent
+                        publishContent
                 );
             }
 
@@ -581,6 +582,94 @@ public class OptimizeServiceImpl implements OptimizeService {
         log.info("版本确认成功: versionId={}, contentChanged={}", versionId, contentChanged);
         return version;
 
+    }
+
+    private String determineFinalContent(
+            ResumeVersion version,
+            String requestedContent,
+            List<ConfirmDecision> removeDecisions
+    ) {
+        boolean contentProvided = requestedContent != null
+                && !requestedContent.isBlank();
+
+        if (!removeDecisions.isEmpty() && !contentProvided) {
+            throw new IllegalArgumentException(
+                    "选择“我删掉”时，必须提交修改后的正文"
+            );
+        }
+
+        String finalContent = contentProvided
+                ? requestedContent
+                : version.getOptimizedContent();
+
+        if (finalContent == null || finalContent.isBlank()) {
+            throw new IllegalArgumentException("确认后的正文不能为空");
+        }
+
+        for (ConfirmDecision decision : removeDecisions) {
+            if (containsTarget(finalContent, decision.getTarget())) {
+                throw new IllegalArgumentException(
+                        "以下内容仍在正文中，请先删除："
+                                + decision.getTarget()
+                );
+            }
+        }
+
+        return finalContent;
+    }
+
+    /**
+     * 决策归一化和校验
+     * @param decisions
+     * @return
+     */
+    private Map<String, ConfirmDecision> normalizeAndValidateDecisions(
+            List<ConfirmDecision> decisions
+    ) {
+
+        Map<String, ConfirmDecision> decisionMap = new LinkedHashMap<>();
+
+        for (ConfirmDecision decision : decisions) {
+            if(decision==null){
+                throw new IllegalArgumentException("处置项不能为空");
+            }
+
+            String type = normalizeForMatch(decision.getType());
+            String target = decision.getTarget() == null
+                    ? "" : decision.getTarget().trim();
+
+            String action = normalizeForMatch(decision.getAction());
+
+            if (!"SKILL".equals(type) && !"CLAIM".equals(type)) {
+                throw new IllegalArgumentException(
+                        "非法处置类型: " + decision.getType()
+                );
+            }
+            if (target.isBlank()) {
+                throw new IllegalArgumentException("处置项缺少 target");
+            }
+            if (!"ACCEPT".equals(action)
+                    && !"REMOVE".equals(action)) {
+                throw new IllegalArgumentException(
+                        "非法 action: " + decision.getAction()
+                                + "，只能是 ACCEPT / REMOVE"
+                );
+            }
+
+            decision.setType(type);
+            decision.setTarget(target);
+            decision.setAction(action);
+
+            String key = type + ":" + target;
+
+            if (decisionMap.putIfAbsent(key, decision) != null) {
+                throw new IllegalArgumentException(
+                        "处置项重复：" + key
+                );
+            }
+
+        }
+        return decisionMap;
     }
 
     /** 把快照摊平成 "SKILL:xxx" / "CLAIM:yyy" 的 key 集合，key 的构造规则必须和前端约定一致 */
@@ -694,6 +783,39 @@ public class OptimizeServiceImpl implements OptimizeService {
         }
 
         return version;
+    }
+
+    /**
+     *归一化正文
+     * @param text
+     * @return
+     */
+    private String normalizeForMatch(String text) {
+        if (text == null) {
+            return "";
+        }
+
+        return text
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 检查目标是否存在
+     * @param content
+     * @param target
+     * @return
+     */
+    private boolean containsTarget(String content, String target) {
+        String normalizedContent = normalizeForMatch(content);
+        String normalizedTarget = normalizeForMatch(target);
+
+        if (normalizedTarget.isBlank()) {
+            return false;
+        }
+
+        return normalizedContent.contains(normalizedTarget);
     }
 
 }
