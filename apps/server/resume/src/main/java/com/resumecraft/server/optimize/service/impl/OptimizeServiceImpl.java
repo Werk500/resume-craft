@@ -141,6 +141,8 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .versionName("AI优化-v1")
                 .targetJob(targetJob)
                 .optimizedContent(optimized)
+                .status("CONFIRMED")
+                .confirmedAt(LocalDateTime.now())
                 .build();
 
         saveVersionAndPublish(version);
@@ -180,7 +182,7 @@ public class OptimizeServiceImpl implements OptimizeService {
 
     4.组装“待确认项”（Pending）：提取 AI 在优化过程中“瞎编”或“夸大”的内容（Skills / Claims），生成 JSON 交由用户后续确认。
 
-    5.版本落库：生成一个全新的简历版本（状态为 DRAFT），记录版本名、覆盖率、待确认项等。
+    5.版本落库：有待确认项时生成 DRAFT 版本，否则直接生成 CONFIRMED 版本。
 
     6.异步事件驱动：通过 afterCommitExecutor 在数据库事务提交后，向消息队列（如 RocketMQ/Kafka）发送事件，触发后续流程（如向量化入库、异步通知等）。
 
@@ -300,7 +302,8 @@ public class OptimizeServiceImpl implements OptimizeService {
                 .targetJob(job.getTitle())
                 .optimizedContent(optimizedResume)
                 .matchScore(loop.getFinalCoverage())   // 表里的 match_score 正好存闭环终值
-                .status("DRAFT")
+                .status(pendingJson == null ? "CONFIRMED" : "DRAFT")
+                .confirmedAt(pendingJson == null ? LocalDateTime.now() : null)
                 .pendingJson(pendingJson)
                 .build();
         saveVersionAndPublish(version);
@@ -419,6 +422,8 @@ public class OptimizeServiceImpl implements OptimizeService {
         version.setResumeId(resumeId);
         version.setUserId(resume.getUserId());
         version.setOptimizedContent(content);
+        version.setStatus("CONFIRMED");
+        version.setConfirmedAt(LocalDateTime.now());
 
         //如果未指定版本名，自动生成
         if (versionName == null ) {
@@ -445,7 +450,7 @@ public class OptimizeServiceImpl implements OptimizeService {
         //1.查询版本 + 越权校验
         ResumeVersion version = findOwnedVersion(versionId);
 
-        if (version.getPendingJson() != null && !"CONFIRMED".equals(version.getStatus())) {
+        if (!isDeliveryReady(version)) {
             throw new IllegalArgumentException("该版本还有 AI 改动未确认，请先在版本页确认后再导出");
         }
 
@@ -783,6 +788,15 @@ public class OptimizeServiceImpl implements OptimizeService {
         }
 
         return version;
+    }
+
+    /**
+     * 新版本由代码显式写入状态；历史上没有待确认项的版本允许兼容放行。
+     */
+    private boolean isDeliveryReady(ResumeVersion version) {
+        return "CONFIRMED".equalsIgnoreCase(version.getStatus())
+                || version.getPendingJson() == null
+                || version.getPendingJson().isBlank();
     }
 
     /**

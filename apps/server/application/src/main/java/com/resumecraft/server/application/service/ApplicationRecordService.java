@@ -1,8 +1,6 @@
 package com.resumecraft.server.application.service;
 
 import com.resumecraft.server.application.domain.ApplicationRecord;
-import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 import java.util.Map;
@@ -14,7 +12,7 @@ public interface ApplicationRecordService {
 
     ApplicationRecord findById( Long id);
 
-    ApplicationRecord update(Long id,ApplicationRecord record);
+    ApplicationRecord updateStatus(Long id, String status);
 
     void delete(Long id);
 

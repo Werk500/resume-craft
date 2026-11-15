@@ -108,6 +108,7 @@ export default function ApplicationsPage() {
             <input
               type="date"
               aria-label="投递日期"
+              required
               value={form.appliedAt}
               onChange={(e) => setForm({ ...form, appliedAt: e.target.value })}
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
@@ -122,17 +123,21 @@ export default function ApplicationsPage() {
             <input
               type="number"
               aria-label="优化版本ID"
+              min={1}
+              required
               value={form.resumeVersionId}
               onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
-              placeholder="优化版本ID（可空）"
+              placeholder="已确认的优化版本 ID"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <input
               type="number"
               aria-label="岗位ID"
+              min={1}
+              required
               value={form.jobId}
               onChange={(e) => setForm({ ...form, jobId: e.target.value })}
-              placeholder="岗位ID（可空）"
+              placeholder="目标岗位 ID"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
             <select

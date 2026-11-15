@@ -56,7 +56,7 @@ public class InternalResumeController {
 
         ResumeVersion resumeVersion = resumeVersionMapper.selectById(id);
         if (resumeVersion == null){
-            throw new RuntimeException("版本不存在");
+            throw new IllegalArgumentException("简历版本不存在");
         }
 
         Resume resume = resumeMapper.selectById(resumeVersion.getResumeId());
@@ -73,6 +73,9 @@ public class InternalResumeController {
                 .optimizedContent(resumeVersion.getOptimizedContent())
                 .matchScore(resumeVersion.getMatchScore())
                 .createTime(resumeVersion.getCreateTime())
+                .status(resumeVersion.getStatus())
+                .confirmedAt(resumeVersion.getConfirmedAt())
+                .pendingJson(resumeVersion.getPendingJson())
                 .build();
     }
 }

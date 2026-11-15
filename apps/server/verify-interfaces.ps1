@@ -57,30 +57,9 @@ Assert-True "job/search keyword=Java" ($kw.code -eq 200) "total=$($kw.data.total
 $company = Invoke-Api -Method Get -Uri "$Base/api/v1/job/search?company=测试&page=1&size=5" -Headers $auth
 Assert-True "job/search company 参数可调用" ($company.code -eq 200)
 
-# ---- 2. application/stats ----
+# ---- 2. match/body 参数校验（空 body 应 400 而不是 500） ----
 Write-Host ""
-Write-Host "== 2. application/stats ==" -ForegroundColor Cyan
-
-$jobs = Invoke-Api -Method Get -Uri "$Base/api/v1/job" -Headers $auth
-$jobId = $jobs.data[0].id
-$today = (Get-Date).ToString("yyyy-MM-dd")
-Invoke-Api -Method Post -Uri "$Base/api/v1/application" -Headers $auth -Body @{
-    resumeVersionId = 0
-    jobId           = $jobId
-    appliedAt       = $today
-    status          = "pending"
-} | Out-Null
-
-$stats = Invoke-Api -Method Get -Uri "$Base/api/v1/application/stats" -Headers $auth
-$statKeys = $stats.data.PSObject.Properties.Name
-$missingKeys = @("pending","interviewing","rejected","no_response","accepted","total") |
-    Where-Object { $_ -notin $statKeys } |
-    Measure-Object | Select-Object -ExpandProperty Count
-Assert-True "application/stats 字段齐全" ($stats.code -eq 200 -and $missingKeys -eq 0 -and $stats.data.pending -ge 1) "pending=$($stats.data.pending) total=$($stats.data.total)"
-
-# ---- 3. match/body 参数校验（空 body 应 400 而不是 500） ----
-Write-Host ""
-Write-Host "== 3. match/body 校验 ==" -ForegroundColor Cyan
+Write-Host "== 2. match/body 校验 ==" -ForegroundColor Cyan
 
 $status = 0
 try {
@@ -91,9 +70,9 @@ try {
 }
 Assert-True "match/body 空参数返回 400" ($status -eq 400) "HTTP $status"
 
-# ---- 4. 上传 + 内部接口鉴权 + 保存版本 + 导出 + 删除级联 ----
+# ---- 3. 上传 + 内部接口鉴权 + 保存版本 + 投递 + 导出 + 删除级联 ----
 Write-Host ""
-Write-Host "== 4. resume/export/delete ==" -ForegroundColor Cyan
+Write-Host "== 3. resume/application/export/delete ==" -ForegroundColor Cyan
 
 $upload = Invoke-RestMethod -Method Post -Uri "$Base/api/v1/resume/upload" -Headers $auth -Form @{
     file = Get-Item $sampleResume
@@ -115,11 +94,32 @@ $saved = Invoke-Api -Method Post -Uri "$Base/api/v1/optimize/$resumeId/save" -He
 $versionId = $saved.data.id
 Assert-True "optimize/save 生成版本" ($saved.code -eq 200 -and $versionId -gt 0) "versionId=$versionId"
 
+# 投递必须引用真实、本人且已确认的版本。
+$jobs = Invoke-Api -Method Get -Uri "$Base/api/v1/job" -Headers $auth
+$jobId = $jobs.data[0].id
+$application = Invoke-Api -Method Post -Uri "$Base/api/v1/application" -Headers $auth -Body @{
+    resumeVersionId = $versionId
+    jobId           = $jobId
+    appliedAt       = (Get-Date).ToString("yyyy-MM-dd")
+    status          = "pending"
+}
+Assert-True "application/create 使用真实确认版本" ($application.code -eq 200 -and $application.data.id -gt 0) "applicationId=$($application.data.id)"
+
+$stats = Invoke-Api -Method Get -Uri "$Base/api/v1/application/stats" -Headers $auth
+$statKeys = $stats.data.PSObject.Properties.Name
+$missingKeys = @("pending","interviewing","rejected","no_response","accepted","total") |
+    Where-Object { $_ -notin $statKeys } |
+    Measure-Object | Select-Object -ExpandProperty Count
+Assert-True "application/stats 字段齐全" ($stats.code -eq 200 -and $missingKeys -eq 0 -and $stats.data.total -ge 1) "pending=$($stats.data.pending) total=$($stats.data.total)"
+
 # 导出 PDF / DOCX
 $pdf = Invoke-WebRequest -Uri "$Base/api/v1/version/$versionId/export?format=pdf" -Headers $auth -SkipHttpErrorCheck -TimeoutSec 60
 Assert-True "export pdf Content-Type" ($pdf.StatusCode -eq 200 -and $pdf.Headers."Content-Type" -like "application/pdf*") "type=$($pdf.Headers.'Content-Type')"
 $docx = Invoke-WebRequest -Uri "$Base/api/v1/version/$versionId/export?format=docx" -Headers $auth -SkipHttpErrorCheck -TimeoutSec 60
 Assert-True "export docx Content-Type" ($docx.StatusCode -eq 200 -and $docx.Headers."Content-Type" -like "application/vnd.openxmlformats*") "type=$($docx.Headers.'Content-Type')"
+
+# 删除本次验收创建的投递记录，避免残留脏数据。
+Invoke-Api -Method Delete -Uri "$Base/api/v1/application/$($application.data.id)" -Headers $auth | Out-Null
 
 # 删除简历 -> 版本应被级联清空
 $del = Invoke-Api -Method Delete -Uri "$Base/api/v1/resume/$resumeId" -Headers $auth
@@ -131,7 +131,7 @@ Assert-True "删除后版本已级联清理" ($remaining -eq 0) "remaining=$rema
 # ---- 汇总 ----
 Write-Host ""
 if ($exitCode -eq 0) {
-    Write-Host "[SUCCESS] 第 4 步接口验收全部通过" -ForegroundColor Green
+    Write-Host "[SUCCESS] 接口验收全部通过" -ForegroundColor Green
 } else {
     Write-Host "[FAILURE] 存在失败项，请检查上方 [FAIL]" -ForegroundColor Red
 }

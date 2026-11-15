@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS resume_version (
     target_job        VARCHAR(200) COMMENT '目标岗位',
     optimized_content TEXT         COMMENT '优化后内容',
     match_score       DOUBLE       COMMENT '匹配度得分',
+    status            VARCHAR(20)  NOT NULL DEFAULT 'DRAFT'
+        COMMENT 'DRAFT=待确认 / CONFIRMED=已确认（可导出、可投递）',
+    confirmed_at      DATETIME     COMMENT '用户确认时间',
+    pending_json      TEXT         COMMENT '版本生成时的待确认项快照(JSON)',
     create_time       DATETIME DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_version_user (user_id),
       INDEX idx_version_resume (resume_id)

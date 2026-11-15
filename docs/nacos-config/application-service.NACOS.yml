@@ -64,3 +64,28 @@ app:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}
     expire-seconds: ${JWT_EXPIRE_SECONDS:1800}
   internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        sliding-window-type: COUNT_BASED
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+    instances:
+      resumeService:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+        cancel-running-future: true
+    instances:
+      resumeService:
+        base-config: default

@@ -138,6 +138,27 @@ Info "定向优化（AI 改写，约 10~60 秒）"
 $targeted = (Invoke-Api -Method Post -Path "/api/v1/optimize/$resumeId/targeted?jobId=$jobId" -Token $token).data
 Ok "生成版本 #$($targeted.versionId)  改动=$($targeted.changes.Count) 条  缺口=$($targeted.gaps.Count) 条"
 
+# 有待确认项时，必须先完成 Human-in-the-loop 确认，后端才允许投递。
+$decisions = @()
+foreach ($skill in @($targeted.pendingSkills)) {
+    if ($null -ne $skill) {
+        $decisions += @{ type = "SKILL"; target = $skill.skill; action = "ACCEPT" }
+    }
+}
+foreach ($claim in @($targeted.pendingClaims)) {
+    if ($null -ne $claim) {
+        $decisions += @{ type = "CLAIM"; target = $claim.claim; action = "ACCEPT" }
+    }
+}
+if ($decisions.Count -gt 0) {
+    Info "确认 $($decisions.Count) 个 AI 待确认项"
+    Invoke-Api -Method Post -Path "/api/v1/version/$($targeted.versionId)/confirm" -Token $token -Body @{
+        decisions = $decisions
+        content   = $targeted.optimizedContent
+    } | Out-Null
+    Ok "版本 #$($targeted.versionId) 已确认"
+}
+
 # ---------- 7. 优化后匹配 ----------
 Info "匹配（优化后版本）"
 $after = (Invoke-Api -Method Post -Path "/api/v1/match/body" -Token $token `

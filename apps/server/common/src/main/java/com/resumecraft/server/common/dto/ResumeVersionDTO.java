@@ -33,4 +33,12 @@ public class ResumeVersionDTO {
     private Double matchScore;
 
     private LocalDateTime createTime;
+
+    /** DRAFT=待确认 / CONFIRMED=已确认 */
+    private String status;
+
+    private LocalDateTime confirmedAt;
+
+    /** 待人工确认项快照，确认后允许继续保留用于审计 */
+    private String pendingJson;
 }

@@ -1,5 +1,7 @@
 package com.resumecraft.server.application.controller;
 
+import com.resumecraft.server.application.controller.dto.ApplicationRecordCreateRequest;
+import com.resumecraft.server.application.controller.dto.ApplicationRecordUpdateRequest;
 import com.resumecraft.server.application.domain.ApplicationRecord;
 import com.resumecraft.server.application.service.ApplicationRecordService;
 import com.resumecraft.server.common.ApiResponse;
@@ -26,9 +28,11 @@ public class ApplicationRecordController {
      * @return
      */
     @PostMapping
-    public ApiResponse<ApplicationRecord> createApplicationRecord(@Valid @RequestBody ApplicationRecord record) {
+    public ApiResponse<ApplicationRecord> createApplicationRecord(
+            @Valid @RequestBody ApplicationRecordCreateRequest request
+    ) {
 
-        return ApiResponse.ok(applicationRecordService.create(record));
+        return ApiResponse.ok(applicationRecordService.create(request.toRecord()));
     }
 
     /**
@@ -57,8 +61,11 @@ public class ApplicationRecordController {
      * @return
      */
     @PutMapping("/{id}")
-    public ApiResponse<ApplicationRecord> updateApplicationRecord(@Valid @PathVariable Long id,@Valid @RequestBody ApplicationRecord record) {
-        return ApiResponse.ok(applicationRecordService.update(id,record));
+    public ApiResponse<ApplicationRecord> updateApplicationRecord(
+            @Valid @PathVariable Long id,
+            @Valid @RequestBody ApplicationRecordUpdateRequest request
+    ) {
+        return ApiResponse.ok(applicationRecordService.updateStatus(id, request.getStatus()));
     }
 
     /**
