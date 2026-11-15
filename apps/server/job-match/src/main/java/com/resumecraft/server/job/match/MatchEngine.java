@@ -12,7 +12,6 @@ import com.resumecraft.server.job.domain.MatchResult;
 import com.resumecraft.server.job.vector.VectorStore;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.simpleframework.xml.util.Match;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -128,21 +127,47 @@ public class MatchEngine {
      */
     private KeywordMatchResult calculateKeywordMatch(String resumeText, List<String> keywords) {
         // 归一化简历文本
-        String normalizedResume = normalizeText(resumeText);
+        String normalizedResume = normalizeText(resumeText);// 全文只归一化一次
+
+        LinkedHashMap<String,String> uniqueKeywords = new LinkedHashMap<>();
 
         List<KeywordHit> hits = new ArrayList<>();
         List<String> missingKeywords = new ArrayList<>();
 
         for (String keyword : keywords) {
-            String normalizedKeyword = normalizeKeyword(keyword);
-            boolean isHit = normalizedResume.contains(normalizedKeyword);
-            hits.add(buildHit(keyword, isHit));
+
+            if (keyword == null || keyword.isBlank()) {
+                continue;
+            }
+            //归一化关键词
+            String normalized = normalizeKeyword(keyword);
+
+            if(normalized.isBlank()) {
+                continue;
+            }
+
+            uniqueKeywords.putIfAbsent(normalized, keyword.trim());
+        }
+
+
+        for (Map.Entry<String, String> entry : uniqueKeywords.entrySet()) {
+            String normalizedKeyword = entry.getKey();
+            String displayKeyword = entry.getValue();
+
+            boolean isHit = containsKeyword(
+                    normalizedResume,
+                    normalizedKeyword
+            );
+
+            hits.add(buildHit(displayKeyword, isHit));
+
             if (!isHit) {
-                missingKeywords.add(keyword);
+                missingKeywords.add(displayKeyword);
             }
         }
 
-        int total = keywords.size();
+        int total = uniqueKeywords.size();
+
         int hitCount = hits.size() - missingKeywords.size();
         double score = total > 0 ? (double) hitCount / total * 100 : 0;
 
@@ -160,48 +185,46 @@ public class MatchEngine {
      * 归一化文本：大小写、全半角、特殊字符处理
      */
     private String normalizeText(String text) {
-        if (text == null) return "";
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
 
-        String normalized = text
-                // 转小写
-                .toLowerCase()
-                // 全半角转换（仅处理字母数字）
-                .replaceAll("Ａ", "a").replaceAll("Ｂ", "b").replaceAll("Ｃ", "c")
-                .replaceAll("Ｄ", "d").replaceAll("Ｅ", "e").replaceAll("Ｆ", "f")
-                .replaceAll("Ｇ", "g").replaceAll("Ｈ", "h").replaceAll("Ｉ", "i")
-                .replaceAll("Ｊ", "j").replaceAll("Ｋ", "k").replaceAll("Ｌ", "l")
-                .replaceAll("Ｍ", "m").replaceAll("Ｎ", "n").replaceAll("Ｏ", "o")
-                .replaceAll("Ｐ", "p").replaceAll("Ｑ", "q").replaceAll("Ｒ", "r")
-                .replaceAll("Ｓ", "s").replaceAll("Ｔ", "t").replaceAll("Ｕ", "u")
-                .replaceAll("Ｖ", "v").replaceAll("Ｗ", "w").replaceAll("Ｘ", "x")
-                .replaceAll("Ｙ", "y").replaceAll("Ｚ", "z")
-                // 数字全半角
-                .replaceAll("０", "0").replaceAll("１", "1").replaceAll("２", "2")
-                .replaceAll("３", "3").replaceAll("４", "4").replaceAll("５", "5")
-                .replaceAll("６", "6").replaceAll("７", "7").replaceAll("８", "8")
-                .replaceAll("９", "9")
-                // 常见变体统一
-                .replaceAll("springboot", "spring boot")
-                .replaceAll("spring-boot", "spring boot")
-                .replaceAll("spring cloud", "springcloud")
-                .replaceAll("\\s+", " ")  // 多个空格合并
-                .trim();
+        StringBuilder sb = new StringBuilder(text.length());
+        boolean previousWhitespace = false;
 
-        return normalized;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+
+            // 全角字母、数字和符号转半角
+            if (c >= '！' && c <= '～') {
+                c = (char) (c - 0xFEE0);
+            }
+
+            if (Character.isWhitespace(c)) {
+                if (!previousWhitespace && sb.length() > 0) {
+                    sb.append(' ');
+                }
+                previousWhitespace = true;
+                continue;
+            }
+
+            previousWhitespace = false;
+            sb.append(Character.toLowerCase(c));
+        }
+
+        return sb.toString()
+                .trim()
+                .replace("springboot", "spring boot")
+                .replace("spring-boot", "spring boot")
+                .replace("spring-cloud", "springcloud")
+                .replace("spring cloud", "springcloud");
     }
 
     /**
      * 归一化关键词
      */
     private String normalizeKeyword(String keyword) {
-        if (keyword == null) return "";
-
-        return keyword
-                .toLowerCase()
-                .replaceAll("springboot", "spring boot")
-                .replaceAll("spring-boot", "spring boot")
-                .replaceAll("\\s+", " ")
-                .trim();
+        return normalizeText(keyword);
     }
 
     private KeywordHit buildHit(String keyword, boolean hit) {
@@ -500,4 +523,62 @@ public class MatchEngine {
                 .build();
     }
 
+
+    private boolean containsKeyword(
+            String text,
+            String keyword
+    ) {
+        if (text == null
+                || text.isEmpty()
+                || keyword == null
+                || keyword.isBlank()) {
+            return false;
+        }
+
+        // 中文等非 ASCII 关键词直接子串查找
+        if (!isAsciiKeyword(keyword)) {
+            return text.contains(keyword);
+        }
+
+        int fromIndex = 0;
+
+        while (fromIndex <= text.length() - keyword.length()) {
+            int index = text.indexOf(keyword, fromIndex);
+
+            if (index < 0) {
+                return false;
+            }
+
+            int before = index - 1;
+            int after = index + keyword.length();
+
+            boolean leftBoundary = before < 0
+                    || !isAsciiWordCharacter(text.charAt(before));
+
+            boolean rightBoundary = after >= text.length()
+                    || !isAsciiWordCharacter(text.charAt(after));
+
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+
+            fromIndex = index + 1;
+        }
+
+        return false;
+    }
+
+    private boolean isAsciiKeyword(String keyword) {
+        for (int i = 0; i < keyword.length(); i++) {
+            if (keyword.charAt(i) > 127) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isAsciiWordCharacter(char c) {
+        return (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9');
+    }
 }
