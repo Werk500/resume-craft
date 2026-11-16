@@ -126,4 +126,36 @@ class MatchEngineTest {
         assertThat(result.getOverallScore()).isEqualTo(80.0);
     }
 
+    @Test
+    @DisplayName("JD 的 2027届与教育经历毕业年份能够匹配")
+    void shouldMatchGraduationCohort() {
+        stubAi(List.of("Java"), "{\"score\":70,\"reason\":\"ok\"}");
+
+        MatchResult result = matchEngine.execute(
+                "李畅，本科，教育经历：江西财经大学 软件工程 2023/09 - 2027/06，熟悉 Java",
+                job("2027届获得本科及以上学历，熟悉 Java")
+        );
+
+        assertThat(result.getDimensionDetails().getHardRequirement().getYearRequirement())
+                .isEqualTo("2027届");
+        assertThat(result.getDimensionDetails().getHardRequirement().getYearMet()).isTrue();
+        assertThat(result.getHardRequirementPassed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("JD 的 2026届与 2027 年毕业不匹配")
+    void shouldRejectDifferentGraduationCohort() {
+        stubAi(List.of("Java"), "{\"score\":70,\"reason\":\"ok\"}");
+
+        MatchResult result = matchEngine.execute(
+                "李畅，本科，教育经历：江西财经大学 软件工程 2023/09 - 2027/06，熟悉 Java",
+                job("2026届获得本科及以上学历，熟悉 Java")
+        );
+
+        assertThat(result.getDimensionDetails().getHardRequirement().getYearRequirement())
+                .isEqualTo("2026届");
+        assertThat(result.getDimensionDetails().getHardRequirement().getYearMet()).isFalse();
+        assertThat(result.getHardRequirementPassed()).isFalse();
+    }
+
 }

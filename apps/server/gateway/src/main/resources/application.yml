@@ -91,5 +91,7 @@ management:
       show-details: always
 
 app:
+  kafka:
+    topic-management-enabled: false
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-prod-32bytes}

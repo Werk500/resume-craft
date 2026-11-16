@@ -524,7 +524,7 @@ public class OptimizeServiceImpl implements OptimizeService {
         Set<String> pending = buildPendingKeys(snapshot);
 
         Map<String, ConfirmDecision> decisionMap =
-                normalizeAndValidateDecisions(req.getDecisions());
+                ConfirmDecisionNormalizer.normalizeAndValidate(req.getDecisions());
 
         // 每个决策必须对应快照中的真实待确认项。
         for (String key : decisionMap.keySet()) {
@@ -621,60 +621,6 @@ public class OptimizeServiceImpl implements OptimizeService {
         }
 
         return finalContent;
-    }
-
-    /**
-     * 决策归一化和校验
-     * @param decisions
-     * @return
-     */
-    private Map<String, ConfirmDecision> normalizeAndValidateDecisions(
-            List<ConfirmDecision> decisions
-    ) {
-
-        Map<String, ConfirmDecision> decisionMap = new LinkedHashMap<>();
-
-        for (ConfirmDecision decision : decisions) {
-            if(decision==null){
-                throw new IllegalArgumentException("处置项不能为空");
-            }
-
-            String type = normalizeForMatch(decision.getType());
-            String target = decision.getTarget() == null
-                    ? "" : decision.getTarget().trim();
-
-            String action = normalizeForMatch(decision.getAction());
-
-            if (!"SKILL".equals(type) && !"CLAIM".equals(type)) {
-                throw new IllegalArgumentException(
-                        "非法处置类型: " + decision.getType()
-                );
-            }
-            if (target.isBlank()) {
-                throw new IllegalArgumentException("处置项缺少 target");
-            }
-            if (!"ACCEPT".equals(action)
-                    && !"REMOVE".equals(action)) {
-                throw new IllegalArgumentException(
-                        "非法 action: " + decision.getAction()
-                                + "，只能是 ACCEPT / REMOVE"
-                );
-            }
-
-            decision.setType(type);
-            decision.setTarget(target);
-            decision.setAction(action);
-
-            String key = type + ":" + target;
-
-            if (decisionMap.putIfAbsent(key, decision) != null) {
-                throw new IllegalArgumentException(
-                        "处置项重复：" + key
-                );
-            }
-
-        }
-        return decisionMap;
     }
 
     /** 把快照摊平成 "SKILL:xxx" / "CLAIM:yyy" 的 key 集合，key 的构造规则必须和前端约定一致 */

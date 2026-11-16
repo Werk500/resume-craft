@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +29,18 @@ import java.util.regex.Pattern;
 @Slf4j
 @Component
 public class MatchEngine {
+
+    private static final Pattern COHORT_PATTERN =
+            Pattern.compile("(?<!\\d)((?:19|20)\\d{2})\\s*届");
+
+    private static final Pattern GRADUATION_YEAR_PATTERN =
+            Pattern.compile("(?<!\\d)((?:19|20)\\d{2})\\s*年(?:毕业|应届)");
+
+    private static final Pattern WORK_YEARS_PATTERN =
+            Pattern.compile("(?<!\\d)(\\d{1,2})\\s*年(?:以上)?");
+
+    private static final Pattern EDUCATION_DATE_PATTERN =
+            Pattern.compile("(?<!\\d)((?:19|20)\\d{2})\\s*[/.\\-]\\s*\\d{1,2}(?!\\d)");
 
 
     @Resource
@@ -371,12 +384,19 @@ public class MatchEngine {
     private String parseYearRequirement(String text) {
         if (text == null) return "未指定";
 
-        // 匹配数字+年/年以上等模式
-        Pattern pattern = Pattern.compile("(\\d+)\\s*年");
-        java.util.regex.Matcher matcher = pattern.matcher(text);
+        Matcher cohort = COHORT_PATTERN.matcher(text);
+        if (cohort.find()) {
+            return cohort.group(1) + "届";
+        }
 
-        if (matcher.find()) {
-            return matcher.group(1) + "年以上";
+        Matcher graduation = GRADUATION_YEAR_PATTERN.matcher(text);
+        if (graduation.find()) {
+            return graduation.group(1) + "届";
+        }
+
+        Matcher workYears = WORK_YEARS_PATTERN.matcher(text);
+        if (workYears.find()) {
+            return workYears.group(1) + "年以上";
         }
 
         if (text.contains("应届") || text.contains("毕业生")) {
@@ -393,6 +413,30 @@ public class MatchEngine {
         if ("未指定".equals(requirement)) return true;
         if ("应届生".equals(requirement)) {
             return resumeText.contains("应届") || resumeText.contains("毕业生");
+        }
+
+        if (requirement.endsWith("届")) {
+            Matcher requirementMatcher = COHORT_PATTERN.matcher(requirement);
+            if (!requirementMatcher.find()) {
+                return false;
+            }
+            String requiredYear = requirementMatcher.group(1);
+            if (resumeText.contains(requiredYear + "届")) {
+                return true;
+            }
+
+            int educationIndex = resumeText.indexOf("教育经历");
+            String educationText = educationIndex >= 0
+                    ? resumeText.substring(educationIndex,
+                    Math.min(resumeText.length(), educationIndex + 500))
+                    : resumeText;
+            Matcher graduationDate = EDUCATION_DATE_PATTERN.matcher(educationText);
+            while (graduationDate.find()) {
+                if (requiredYear.equals(graduationDate.group(1))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // 提取要求的年限

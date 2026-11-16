@@ -6,7 +6,14 @@ import { Send } from "lucide-react";
 import { api } from "@/lib/api";
 import ListSkeleton from "@/components/ListSkeleton";
 import PageHeader from "@/components/PageHeader";
-import { APP_STATUS, type ApplicationRecord, type AppStatus } from "@/lib/types";
+import {
+  APP_STATUS,
+  type ApplicationRecord,
+  type AppStatus,
+  type Job,
+  type Resume,
+  type ResumeVersion,
+} from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-zinc-100 text-zinc-600",
@@ -16,12 +23,30 @@ const STATUS_COLORS: Record<string, string> = {
   accepted: "bg-green-100 text-green-700",
 };
 
+type VersionOption = ResumeVersion & { resumeName: string };
+
+function localToday() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
 export default function ApplicationsPage() {
   const [apps, setApps] = useState<ApplicationRecord[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [versionOptions, setVersionOptions] = useState<VersionOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [optionsLoading, setOptionsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ resumeVersionId: "", jobId: "", appliedAt: "", channel: "", status: "pending" as AppStatus, notes: "" });
+  const [form, setForm] = useState({
+    resumeVersionId: "",
+    jobId: "",
+    appliedAt: localToday(),
+    channel: "",
+    status: "pending" as AppStatus,
+    notes: "",
+  });
   const [saving, setSaving] = useState(false);
 
   function load() {
@@ -32,7 +57,34 @@ export default function ApplicationsPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  function loadOptions() {
+    setOptionsLoading(true);
+    Promise.all([
+      api<Job[]>("/api/v1/job"),
+      api<Resume[]>("/api/v1/resume"),
+    ])
+      .then(async ([jobList, resumes]) => {
+        const versionGroups = await Promise.all(
+          resumes.map(async (resume) => {
+            const versions = await api<ResumeVersion[]>(
+              `/api/v1/version?resumeId=${resume.id}`,
+            );
+            return versions
+              .filter((version) => version.status === "CONFIRMED" || !version.pendingJson)
+              .map((version) => ({ ...version, resumeName: resume.fileName }));
+          }),
+        );
+        setJobs(jobList);
+        setVersionOptions(versionGroups.flat());
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "加载投递选项失败"))
+      .finally(() => setOptionsLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    loadOptions();
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -120,26 +172,41 @@ export default function ApplicationsPage() {
               placeholder="投递渠道（如 BOSS直聘）"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
-            <input
-              type="number"
-              aria-label="优化版本ID"
-              min={1}
+            <select
+              aria-label="优化版本"
               required
+              disabled={optionsLoading}
               value={form.resumeVersionId}
               onChange={(e) => setForm({ ...form, resumeVersionId: e.target.value })}
-              placeholder="已确认的优化版本 ID"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
-            />
-            <input
-              type="number"
-              aria-label="岗位ID"
-              min={1}
+            >
+              <option value="">
+                {optionsLoading ? "正在加载版本…" : "请选择已确认版本"}
+              </option>
+              {versionOptions.map((version) => (
+                <option key={version.id} value={version.id}>
+                  {version.versionName} · {version.resumeName}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="目标岗位"
               required
+              disabled={optionsLoading}
               value={form.jobId}
               onChange={(e) => setForm({ ...form, jobId: e.target.value })}
-              placeholder="目标岗位 ID"
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
-            />
+            >
+              <option value="">
+                {optionsLoading ? "正在加载岗位…" : "请选择目标岗位"}
+              </option>
+              {jobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.company} · {job.title}
+                  {job.location ? ` · ${job.location}` : ""}
+                </option>
+              ))}
+            </select>
             <select
               aria-label="投递状态"
               value={form.status}
@@ -158,7 +225,12 @@ export default function ApplicationsPage() {
               className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/25 focus-visible:ring-offset-1 focus:border-zinc-900"
             />
           </div>
-          <button type="submit" disabled={saving} className="mt-4 rounded-lg bg-zinc-900 px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+          {!optionsLoading && versionOptions.length === 0 && (
+            <p className="mt-3 text-xs text-amber-600">
+              当前没有已确认的简历版本，请先完成定向优化和人工确认。
+            </p>
+          )}
+          <button type="submit" disabled={saving || optionsLoading} className="mt-4 rounded-lg bg-zinc-900 px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             {saving ? "保存中…" : "保存"}
           </button>
         </form>
@@ -198,8 +270,17 @@ export default function ApplicationsPage() {
                 <p className="font-medium text-zinc-800">
                   #{a.id}
                   {a.channel && <span className="ml-2 text-sm text-zinc-500">{a.channel}</span>}
-                  {a.jobId && <span className="ml-2 text-xs text-zinc-400">岗位 #{a.jobId}</span>}
-                  {a.resumeVersionId && <span className="ml-2 text-xs text-zinc-400">版本 #{a.resumeVersionId}</span>}
+                  {a.jobId && (
+                    <span className="ml-2 text-xs text-zinc-400">
+                      {jobs.find((job) => job.id === a.jobId)?.title || `岗位 #${a.jobId}`}
+                    </span>
+                  )}
+                  {a.resumeVersionId && (
+                    <span className="ml-2 text-xs text-zinc-400">
+                      {versionOptions.find((version) => version.id === a.resumeVersionId)?.versionName
+                        || `版本 #${a.resumeVersionId}`}
+                    </span>
+                  )}
                 </p>
                 <p className="mt-1 text-xs text-zinc-400">
                   {a.appliedAt || "未填日期"} {a.notes ? `· ${a.notes}` : ""}

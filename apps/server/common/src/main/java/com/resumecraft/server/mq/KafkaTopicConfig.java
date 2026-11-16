@@ -2,6 +2,7 @@ package com.resumecraft.server.mq;
 
 
 import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
@@ -17,6 +18,11 @@ import org.springframework.kafka.config.TopicBuilder;
  * 由 spring-kafka 传递引入的 kafka-clients 提供。
  */
 @Configuration
+@ConditionalOnProperty(
+        name = "app.kafka.topic-management-enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class KafkaTopicConfig {
 
     /** 主 topic：简历 embedding 生成任务 */

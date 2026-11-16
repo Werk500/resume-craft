@@ -138,11 +138,7 @@ public class ResumeServiceImpl implements ResumeService {
             }
 
             // 2. 提取信息
-            ResumeInfoExtractor.ExtractedInfo extractedInfo =
-                    infoExtractor.extractAll(resume1.getRawText());
-            resume1.setParsedName(extractedInfo.getName());
-            resume1.setParsedEmail(extractedInfo.getEmail());
-            resume1.setParsedPhone(extractedInfo.getPhone());
+            applyExtractedInfo(resume1);
 
             resumeMapper.insert(resume1);
             log.info("简历保存成功: id={}, 文件={}", resume1.getId(), originalName);
@@ -200,6 +196,14 @@ public class ResumeServiceImpl implements ResumeService {
             throw new IllegalArgumentException("无法识别文件类型：" + fileName);
         }
         return fileName.substring(dot + 1).toLowerCase();
+    }
+
+    private void applyExtractedInfo(Resume resume) {
+        ResumeInfoExtractor.ExtractedInfo extractedInfo =
+                infoExtractor.extractAll(resume.getRawText());
+        resume.setParsedName(extractedInfo.getName());
+        resume.setParsedEmail(extractedInfo.getEmail());
+        resume.setParsedPhone(extractedInfo.getPhone());
     }
 
     private ResumeParser findParser(String fileType) {
@@ -310,6 +314,7 @@ public class ResumeServiceImpl implements ResumeService {
                 .rawText(rawText)
                 .ocrStatus("OK")
                 .build();
+        applyExtractedInfo(resume);
         resumeMapper.insert(resume);
         log.info("对话创建简历成功: id={}, userId={}", resume.getId(), userId);
 
@@ -331,6 +336,7 @@ public class ResumeServiceImpl implements ResumeService {
 
         Resume resume = findById(resumeId);
         resume.setRawText(rawText);
+        applyExtractedInfo(resume);
         resume.setOcrStatus("OK");   // 人工核对后置为 OK
         resume.setUpdateTime(LocalDateTime.now());
 
