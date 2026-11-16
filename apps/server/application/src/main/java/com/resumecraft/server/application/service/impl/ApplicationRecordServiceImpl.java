@@ -3,8 +3,10 @@ package com.resumecraft.server.application.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.resumecraft.server.application.domain.ApplicationRecord;
 import com.resumecraft.server.application.domain.ApplicationRecordMapper;
+import com.resumecraft.server.application.gateway.JobReferenceGateway;
 import com.resumecraft.server.application.gateway.ResumeVersionGateway;
 import com.resumecraft.server.application.service.ApplicationRecordService;
+import com.resumecraft.server.common.dto.JobBriefDTO;
 import com.resumecraft.server.common.dto.ResumeVersionDTO;
 import com.resumecraft.server.common.security.AuthContext;
 import jakarta.annotation.Resource;
@@ -32,6 +34,8 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
 
     @Resource
     private ResumeVersionGateway resumeVersionGateway;
+    @Resource
+    private JobReferenceGateway jobReferenceGateway;
 
     /**
      * 创建投递记录
@@ -43,15 +47,17 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
         if (record == null) {
             throw new IllegalArgumentException("投递记录不能为空");
         }
+        String status = normalizeStatus(record.getStatus());
 
         Long userId = AuthContext.getUserId();
+        validateJob(record.getJobId());
         validateResumeVersion(record.getResumeVersionId(), userId);
 
         // 防止客户端伪造主键或覆盖归属。
         record.setId(null);
         record.setUserId(userId);
         record.setCreateTime(null);
-        record.setStatus(normalizeStatus(record.getStatus()));
+        record.setStatus(status);
         applicationRecordMapper.insert(record);
         return record;
     }
@@ -94,17 +100,20 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
     /**
      *  更新投递记录
      * @param id
-     * @param record
      * @return
      */
     @Override
     @Transactional
     public ApplicationRecord updateStatus(Long id, String status) {
         findById(id);
+
         ApplicationRecord patch = new ApplicationRecord();
+
         patch.setId(id);
         patch.setStatus(normalizeStatus(status));
+
         applicationRecordMapper.updateById(patch);
+
         return findById(id);
     }
 
@@ -190,5 +199,16 @@ public class ApplicationRecordServiceImpl implements ApplicationRecordService {
             throw new IllegalArgumentException("投递状态不合法: " + status);
         }
         return normalized;
+    }
+
+    private void validateJob(Long jobId){
+        if (jobId == null || jobId <= 0) {
+            throw new IllegalArgumentException("请选择目标岗位");
+        }
+
+        JobBriefDTO job = jobReferenceGateway.getJob(jobId);
+        if (job == null) {
+            throw new IllegalArgumentException("岗位不存在");
+        }
     }
 }

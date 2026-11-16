@@ -37,6 +37,8 @@ public class ResumeVersionGateway {
     }
 
     public ResumeVersionDTO getVersionFallback(Long versionId, Throwable throwable) {
+
+        //业务异常
         if (throwable instanceof IllegalArgumentException businessRejection) {
             throw businessRejection;
         }
@@ -46,9 +48,11 @@ public class ResumeVersionGateway {
 
     private RuntimeException translate(FeignException exception) {
         int status = exception.status();
+        //业务逻辑错误
         if (status >= 400 && status < 500) {
             return new IllegalArgumentException(extractMessage(exception));
         }
+        //系统性故障
         return new ServiceUnavailableException("简历服务暂时不可用，请稍后重试", exception);
     }
 

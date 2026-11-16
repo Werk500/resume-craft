@@ -42,7 +42,7 @@ spring:
         speech: none
         transcription: none
 
-  # ---------- Feign (calls resume-service for version content) ----------
+  # ---------- Feign (resume version validation + job reference lookup) ----------
   cloud:
     openfeign:
       client:
@@ -81,6 +81,8 @@ resilience4j:
     instances:
       resumeService:
         base-config: default
+      jobService:
+        base-config: default
   timelimiter:
     configs:
       default:
@@ -88,4 +90,6 @@ resilience4j:
         cancel-running-future: true
     instances:
       resumeService:
+        base-config: default
+      jobService:
         base-config: default
