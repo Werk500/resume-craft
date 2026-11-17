@@ -11,7 +11,6 @@ import reactor.core.publisher.Mono;
 import javax.crypto.SecretKey;
 import org.springframework.http.HttpHeaders;
 
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 //请求进入网关
@@ -40,10 +39,18 @@ public class RateLimitConfig {
 
     private final SecretKey secretKey;
 
-    public  RateLimitConfig(@Value("${app.jwt.secret}")  String secret) {
-        // HS256 要求密钥 >= 32 字节，与 common 的 JwtUtil 保持一致
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    private final ClientIpResolver clientIpResolver;
+
+    public RateLimitConfig(
+            @Value("${app.jwt.secret}") String secret,
+            ClientIpResolver clientIpResolver
+    ) {
+        this.secretKey = Keys.hmacShaKeyFor(
+                secret.getBytes(StandardCharsets.UTF_8)
+        );
+        this.clientIpResolver = clientIpResolver;
     }
+
 
 //    //按客户端IP限流
 //    @Bean
@@ -70,10 +77,7 @@ public class RateLimitConfig {
             if (userId != null) {
                 return "u:" +userId;
             }
-            InetSocketAddress addr = exchange.getRequest().getRemoteAddress();
-            String ip = (addr != null && addr.getAddress() != null)
-                    ? addr.getAddress().getHostAddress() : "unknown";
-            return "ip:" +ip;
+            return "ip:" + clientIpResolver.resolveClientIp(exchange);
         });
     }
 
